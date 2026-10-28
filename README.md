@@ -78,7 +78,8 @@ python scripts/validate_env.py
 # 2. All non-RL baselines on the 18 scenarios -> results/baselines.csv (about 1 min)
 python scripts/run_baselines.py --no-resume
 
-# 3. Train the R0-R6 ladder, 3 seeds each -> results/checkpoints (about 1 h on a laptop)
+# 3. (optional) retrain the R0-R6 ladder, 3 seeds each -> results/checkpoints (~1 h)
+#    The trained checkpoints are committed, so evaluation works without this step.
 bash scripts/run_all_training.sh 120 3
 
 # 4. Evaluate, tabulate, plot -> results/eval_rl.csv, results/ablation_table.csv, results/figures

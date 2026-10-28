@@ -14,8 +14,7 @@ __pycache__/
 # Reference clone (read-only, see README for the clone command)
 reference/
 
-# Large or regenerable artefacts
-results/checkpoints/*.pt
+# Regenerable artefacts (checkpoints are committed for reproducibility)
 results/logs/*.out
 results/trajectories/*.npz
 results/cache/
