@@ -11,6 +11,10 @@ environment and the non-RL baselines to within a few metres on the paper's table
 retrains the RL ladder from scratch, and adds five incremental fixes — including one
 (the residual action around the singular arc) that closes most of the remaining gap.
 
+**Live dashboard:** [vishwajeettoppo.github.io/goddard-rl](https://vishwajeettoppo.github.io/goddard-rl/) ·
+**Slides:** [slides.html](https://vishwajeettoppo.github.io/goddard-rl/slides.html) ·
+**Report:** [REPORT.md](REPORT.md)
+
 ```
 $ python src/evaluate.py --ablations all      # 18 held-out scenarios, deterministic
 ```
@@ -32,6 +36,10 @@ $ python src/evaluate.py --ablations all      # 18 held-out scenarios, determini
 
 Best learned policy: **R4 · residual action** at **89.3%** of best-known apogee on average, with a worst-case scenario at 53% and 73% on the heavy-fuel subset.
 <!-- results:end -->
+
+![Ablation ladder](results/figures/ablation_bars.png)
+
+![Per-scenario percent of best known](results/figures/heatmap.png)
 
 ## What is here
 
