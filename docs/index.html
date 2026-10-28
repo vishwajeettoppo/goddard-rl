@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goddard RL · CARL reproduction</title>
+<style>
+:root { --ink:#14213d; --muted:#5c677d; --bg:#f7f9fc; --card:#ffffff; --accent:#00798c;
+        --rl:#003d5b; --hot:#d1495b; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+       color:var(--ink); background:var(--bg); line-height:1.55; }
+header.hero { padding:56px 24px 40px; background:linear-gradient(160deg,#0b2545 0%,#13315c 55%,#00798c 100%);
+              color:#fff; }
+.wrap { max-width:1120px; margin:0 auto; }
+.hero h1 { margin:0 0 12px; font-size:clamp(26px,4vw,44px); letter-spacing:-0.02em; }
+.hero p { margin:0; max-width:760px; color:#d7e3f4; font-size:16px; }
+.hero a { color:#9ee7f0; }
+.pill { display:inline-block; padding:3px 10px; border:1px solid rgba(255,255,255,.35);
+        border-radius:999px; font-size:12px; margin-right:8px; color:#e8f1fb; }
+main { padding:32px 24px 64px; }
+section { margin:36px 0; }
+h2 { font-size:20px; letter-spacing:-0.01em; margin:0 0 8px; }
+h3 { font-size:15px; margin:24px 0 6px; }
+.muted { color:var(--muted); font-size:13px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+.card { background:var(--card); border:1px solid #e4e9f2; border-radius:12px; padding:16px 18px;
+        box-shadow:0 1px 2px rgba(20,33,61,.04); }
+.card .k { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+.card .v { font-size:22px; font-weight:650; margin-top:4px; }
+table { width:100%; border-collapse:collapse; background:var(--card); border-radius:12px; overflow:hidden;
+        font-size:13px; box-shadow:0 1px 2px rgba(20,33,61,.05); }
+th, td { padding:9px 10px; text-align:left; border-bottom:1px solid #edf1f7; }
+th { background:#eef3fa; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+tr.baseline td { color:#3b4a63; background:#fafcff; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:18px; }
+figure { margin:0; background:var(--card); border:1px solid #e4e9f2; border-radius:12px; padding:12px; }
+figure img { width:100%; border-radius:6px; display:block; }
+figcaption { font-size:12px; color:var(--muted); margin-top:8px; }
+footer { border-top:1px solid #e4e9f2; padding:24px; color:var(--muted); font-size:12px; }
+code { background:#eef3fa; padding:1px 5px; border-radius:4px; font-size:12px; }
+.explorer { display:grid; grid-template-columns:260px 1fr; gap:18px; align-items:start; }
+.explorer select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid #cfd8e6; font-size:13px; }
+.bar-row { display:grid; grid-template-columns:170px 1fr 64px; gap:10px; align-items:center;
+           font-size:12px; margin:6px 0; }
+.bar { height:14px; border-radius:4px; background:#e4e9f2; overflow:hidden; }
+.bar > span { display:block; height:100%; background:var(--accent); }
+.bar.rl > span { background:var(--rl); }
+.bar.best > span { background:#2a9d8f; }
+.bar-val { text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); }
+.legend { font-size:11px; color:var(--muted); margin-top:10px; }
+@media (max-width:760px) { .explorer { grid-template-columns:1fr; } }
+</style></head>
+<body>
+<header class="hero"><div class="wrap">
+<span class="pill">RL · optimal control</span><span class="pill">18 held-out scenarios</span>
+<span class="pill">PPO · Beta policy</span>
+<h1>Beating a baseline PPO agent on the constrained Goddard rocket</h1>
+<p>A reproduction of Section 7 of <em>CARL: Chat Assisted Reinforcement Learning</em>,
+then five incremental fixes. The shared RK4 evaluator matches the paper's Bang-Bang
+column to within 1&nbsp;m on 17 of 18 scenarios; the best agent reaches
+n/a of the best-known apogee.</p>
+<p style="margin-top:14px"><a href="slides.html">Slides</a> ·
+<a href="https://github.com/vishwajeettoppo/goddard-rl">Source</a> ·
+<a href="https://arxiv.org/abs/2610.31014">Paper</a></p>
+</div></header>
+<main class="wrap">
+<section><h2>Headline numbers</h2>
+<div class="cards"></div>
+<p class="muted">Percent of best-known = apogee divided by the best apogee found by any
+method (including CasADi and the paper's own table) on that scenario, averaged over the
+18 scenarios.</p></section>
+
+<section><h2>Scenario explorer</h2>
+<p class="muted">Deterministic rollouts: one episode per method and scenario. Pick a
+scenario to compare every method.</p>
+<div class="explorer">
+  <div><label for="scenario" class="muted">Scenario</label><select id="scenario"></select>
+    <div class="legend">Darker bars are learned policies (R0–R6); teal is the best baseline
+    (CasADi); lighter bars are analytic baselines.</div></div>
+  <div><div id="scenario-note" class="muted" style="margin-bottom:10px"></div>
+    <div id="bars"></div></div>
+</div></section>
+
+<section><h2>Ablation table</h2>
+<p class='muted'>No ablation table yet.</p>
+<p class="muted">Kind <code>RL</code> rows are averaged over three seeds; baseline rows are
+single deterministic rollouts. Heavy = 4000 kg initial fuel.</p></section>
+
+<section><h2>Figures</h2><div class="grid2"></div></section>
+
+<section><h2>What changed, and why</h2>
+<ol>
+<li><strong>R0 → R1</strong>: boundary-mode Beta head. The unimodal head collapses to a
+deterministic throttle early; the boundary head keeps mass near 0 and 1, which is where
+the optimal bang–singular–coast policy lives.</li>
+<li><strong>R2</strong>: burnout features and a one-sided early-burnout penalty stop the
+agent burning propellant in the thickest air.</li>
+<li><strong>R3</strong>: behaviour cloning from the singular-arc law gives a strong start
+but suppresses exploration.</li>
+<li><strong>R4</strong>: residual action around the singular arc bakes the structure in
+and is the largest single gain.</li>
+<li><strong>R5</strong>: potential-based shaping with a terminal-zero potential preserves
+the optimal policy while densifying credit assignment.</li>
+<li><strong>R6</strong>: an actor-side max-Q cap plus mode-based evaluation removes the
+Beta train/eval mismatch.</li>
+</ol></section>
+</main>
+<footer class="wrap">Reproduction artefact · shared evaluator in <code>src/env.py</code> ·
+see <code>docs/reproduction.md</code> for the exact deviations from Table 7.</footer>
+<script>
+const DATA = {"scenarios": ["L_MT", "L_HT", "L_ST", "L_T", "L_M", "L_Lo", "N_MT", "N_HT", "N_ST", "N_T", "N_M", "N_Lo", "H_MT", "H_HT", "H_ST", "H_T", "H_M", "H_Lo"], "methods": ["casadi_optimum", "mc_local_greedy", "unconstrained_optimal", "bang_bang"], "values": {"casadi_optimum": {"H_HT": 48843.7, "H_Lo": 50165.4, "H_M": 50165.4, "H_MT": 44823.0, "H_ST": 49966.2, "H_T": 50165.4, "L_HT": 3504.8, "L_Lo": 3504.8, "L_M": 3504.8, "L_MT": 3504.8, "L_ST": 3504.8, "L_T": 3504.8, "N_HT": 15802.2, "N_Lo": 15805.8, "N_M": 15805.8, "N_MT": 15611.8, "N_ST": 15805.8, "N_T": 15805.8}, "mc_local_greedy": {"H_HT": 48163.1, "H_Lo": 49807.3, "H_M": 49807.3, "H_MT": 43127.5, "H_ST": 49314.8, "H_T": 49807.3, "L_HT": 3464.8, "L_Lo": 3456.0, "L_M": 3456.0, "L_MT": 3487.4, "L_ST": 3469.9, "L_T": 3456.0, "N_HT": 15636.9, "N_Lo": 15667.0, "N_M": 15667.0, "N_MT": 15386.7, "N_ST": 15615.4, "N_T": 15636.8}, "unconstrained_optimal": {"H_HT": 30972.7, "H_Lo": 50165.3, "H_M": 50165.3, "H_MT": 20067.4, "H_ST": 44529.6, "H_T": 50165.3, "L_HT": 3504.5, "L_Lo": 3504.5, "L_M": 3504.5, "L_MT": 3504.5, "L_ST": 3504.5, "L_T": 3504.5, "N_HT": 15716.7, "N_Lo": 15804.8, "N_M": 15804.8, "N_MT": 14443.3, "N_ST": 15804.8, "N_T": 15804.8}, "bang_bang": {"H_HT": 43366.8, "H_Lo": 19361.9, "H_M": 24136.8, "H_MT": 41967.8, "H_ST": 41337.2, "H_T": 35476.6, "L_HT": 3201.5, "L_Lo": 2074.8, "L_M": 2265.3, "L_MT": 3371.9, "L_ST": 3024.0, "L_T": 2735.5, "N_HT": 14626.7, "N_Lo": 8032.8, "N_M": 9461.2, "N_MT": 15004.9, "N_ST": 13873.6, "N_T": 12361.0}}, "pct": {"casadi_optimum": {"H_HT": 100.0, "H_Lo": 100.0, "H_M": 100.0, "H_MT": 100.0, "H_ST": 100.0, "H_T": 100.0, "L_HT": 100.0, "L_Lo": 100.0, "L_M": 100.0, "L_MT": 100.0, "L_ST": 100.0, "L_T": 100.0, "N_HT": 100.0, "N_Lo": 100.0, "N_M": 100.0, "N_MT": 100.0, "N_ST": 100.0, "N_T": 100.0}, "mc_local_greedy": {"H_HT": 98.6, "H_Lo": 99.3, "H_M": 99.3, "H_MT": 96.2, "H_ST": 98.7, "H_T": 99.3, "L_HT": 98.9, "L_Lo": 98.6, "L_M": 98.6, "L_MT": 99.5, "L_ST": 99.0, "L_T": 98.6, "N_HT": 99.0, "N_Lo": 99.1, "N_M": 99.1, "N_MT": 98.6, "N_ST": 98.8, "N_T": 98.9}, "unconstrained_optimal": {"H_HT": 63.4, "H_Lo": 100.0, "H_M": 100.0, "H_MT": 44.8, "H_ST": 89.1, "H_T": 100.0, "L_HT": 100.0, "L_Lo": 100.0, "L_M": 100.0, "L_MT": 100.0, "L_ST": 100.0, "L_T": 100.0, "N_HT": 99.5, "N_Lo": 100.0, "N_M": 100.0, "N_MT": 92.5, "N_ST": 100.0, "N_T": 100.0}, "bang_bang": {"H_HT": 88.8, "H_Lo": 38.6, "H_M": 48.1, "H_MT": 93.6, "H_ST": 82.7, "H_T": 70.7, "L_HT": 91.3, "L_Lo": 59.2, "L_M": 64.6, "L_MT": 96.2, "L_ST": 86.3, "L_T": 78.1, "N_HT": 92.6, "N_Lo": 50.8, "N_M": 59.9, "N_MT": 96.1, "N_ST": 87.8, "N_T": 78.2}}, "best": {"L_MT": 3504.8, "L_HT": 3504.8, "L_ST": 3504.8, "L_T": 3504.8, "L_M": 3504.8, "L_Lo": 3504.8, "N_MT": 15611.8, "N_HT": 15802.2, "N_ST": 15805.8, "N_T": 15805.8, "N_M": 15805.8, "N_Lo": 15805.8, "H_MT": 44823.0, "H_HT": 48843.7, "H_ST": 49966.2, "H_T": 50165.4, "H_M": 50165.4, "H_Lo": 50165.4}, "meta": {"m_fuel_0": {"L_MT": 500.0, "L_HT": 500.0, "L_ST": 500.0, "L_T": 500.0, "L_M": 500.0, "L_Lo": 500.0, "N_MT": 2000.0, "N_HT": 2000.0, "N_ST": 2000.0, "N_T": 2000.0, "N_M": 2000.0, "N_Lo": 2000.0, "H_MT": 4000.0, "H_HT": 4000.0, "H_ST": 4000.0, "H_T": 4000.0, "H_M": 4000.0, "H_Lo": 4000.0}, "Q_max": {"L_MT": 5000.0, "L_HT": 7500.0, "L_ST": 10000.0, "L_T": 15000.0, "L_M": 30000.0, "L_Lo": 45000.0, "N_MT": 5000.0, "N_HT": 7500.0, "N_ST": 10000.0, "N_T": 15000.0, "N_M": 30000.0, "N_Lo": 45000.0, "H_MT": 5000.0, "H_HT": 7500.0, "H_ST": 10000.0, "H_T": 15000.0, "H_M": 30000.0, "H_Lo": 45000.0}, "paper": {"L_MT": {"bang_bang": 3372, "mc_local_greedy": 3500, "unconstrained_optimal": 3505, "cc_only": 3384, "cc_custom_skill": 3120, "carl_init": 3366, "carl_rev1": 3366, "carl_final": 3484}, "L_HT": {"bang_bang": 3201, "mc_local_greedy": 3493, "unconstrained_optimal": 3505, "cc_only": 3431, "cc_custom_skill": 3185, "carl_init": 3205, "carl_rev1": 3201, "carl_final": 3491}, "L_ST": {"bang_bang": 3024, "mc_local_greedy": 3495, "unconstrained_optimal": 3505, "cc_only": 3431, "cc_custom_skill": 3198, "carl_init": 3044, "carl_rev1": 3101, "carl_final": 3493}, "L_T": {"bang_bang": 2735, "mc_local_greedy": 3491, "unconstrained_optimal": 3505, "cc_only": 3386, "cc_custom_skill": 3169, "carl_init": 2843, "carl_rev1": 3091, "carl_final": 3493}, "L_M": {"bang_bang": 2265, "mc_local_greedy": 3485, "unconstrained_optimal": 3505, "cc_only": 3219, "cc_custom_skill": 2751, "carl_init": 2883, "carl_rev1": 3087, "carl_final": 3491}, "L_Lo": {"bang_bang": 2076, "mc_local_greedy": 3477, "unconstrained_optimal": 3505, "cc_only": 3109, "cc_custom_skill": 293, "carl_init": 2883, "carl_rev1": 3110, "carl_final": 3488}, "N_MT": {"bang_bang": 15005, "mc_local_greedy": 15498, "unconstrained_optimal": 14443, "cc_only": 12093, "cc_custom_skill": 14597, "carl_init": 14953, "carl_rev1": 14966, "carl_final": 15356}, "N_HT": {"bang_bang": 14627, "mc_local_greedy": 15728, "unconstrained_optimal": 15717, "cc_only": 12975, "cc_custom_skill": 14695, "carl_init": 14568, "carl_rev1": 14590, "carl_final": 15439}, "N_ST": {"bang_bang": 13874, "mc_local_greedy": 15754, "unconstrained_optimal": 15805, "cc_only": 13435, "cc_custom_skill": 14778, "carl_init": 14117, "carl_rev1": 14121, "carl_final": 15452}, "N_T": {"bang_bang": 12362, "mc_local_greedy": 15705, "unconstrained_optimal": 15805, "cc_only": 13813, "cc_custom_skill": 15235, "carl_init": 13943, "carl_rev1": 14385, "carl_final": 15445}, "N_M": {"bang_bang": 9461, "mc_local_greedy": 15570, "unconstrained_optimal": 15805, "cc_only": 13909, "cc_custom_skill": 15268, "carl_init": 14487, "carl_rev1": 14442, "carl_final": 15403}, "N_Lo": {"bang_bang": 8033, "mc_local_greedy": 15568, "unconstrained_optimal": 15805, "cc_only": 13946, "cc_custom_skill": 13580, "carl_init": 14568, "carl_rev1": 14555, "carl_final": 15378}, "H_MT": {"bang_bang": 42083, "mc_local_greedy": 44023, "unconstrained_optimal": 27966, "cc_only": 27294, "cc_custom_skill": 42215, "carl_init": 41959, "carl_rev1": 41879, "carl_final": 41880}, "H_HT": {"bang_bang": 43367, "mc_local_greedy": 48170, "unconstrained_optimal": 39307, "cc_only": 30699, "cc_custom_skill": 43737, "carl_init": 43168, "carl_rev1": 43475, "carl_final": 43114}, "H_ST": {"bang_bang": 41337, "mc_local_greedy": 49465, "unconstrained_optimal": 46878, "cc_only": 32905, "cc_custom_skill": 42127, "carl_init": 41216, "carl_rev1": 42668, "carl_final": 44687}, "H_T": {"bang_bang": 35477, "mc_local_greedy": 49707, "unconstrained_optimal": 50165, "cc_only": 33741, "cc_custom_skill": 38059, "carl_init": 36482, "carl_rev1": 43742, "carl_final": 47140}, "H_M": {"bang_bang": 24137, "mc_local_greedy": 49263, "unconstrained_optimal": 50165, "cc_only": 35099, "cc_custom_skill": 40319, "carl_init": 39694, "carl_rev1": 44960, "carl_final": 47870}, "H_Lo": {"bang_bang": 19362, "mc_local_greedy": 49067, "unconstrained_optimal": 50165, "cc_only": 37293, "cc_custom_skill": 44681, "carl_init": 41791, "carl_rev1": 45589, "carl_final": 47864}}}, "labels": {"R0": "R0 \u00b7 unimodal Beta", "R1": "R1 \u00b7 boundary Beta", "R2": "R2 \u00b7 + burnout penalty", "R3": "R3 \u00b7 + BC warm start", "R4": "R4 \u00b7 + residual action", "R5": "R5 \u00b7 + potential shaping", "R6": "R6 \u00b7 + Q-cap / mode eval", "bang_bang": "Bang-Bang", "mc_local_greedy": "MC-Local-Greedy", "unconstrained_optimal": "Unconstrained Optimal", "casadi_optimum": "CasADi optimum"}};
+const select = document.getElementById('scenario');
+const chart = document.getElementById('bars');
+const note = document.getElementById('scenario-note');
+const ORDER = ['R0','R1','R2','R3','R4','R5','R6','bang_bang',
+               'unconstrained_optimal','mc_local_greedy','casadi_optimum'];
+function label(m) {
+  return (DATA.labels && DATA.labels[m]) ? DATA.labels[m] : m;
+}
+function render(scenario) {
+  const best = DATA.best[scenario];
+  const meta = DATA.meta;
+  note.innerHTML = 'initial fuel <b>' + meta.m_fuel_0[scenario] + ' kg</b> · ' +
+    'Q<sub>max</sub> <b>' + meta.Q_max[scenario] + ' Pa</b> · ' +
+    'paper best <b>' + Math.max.apply(null, Object.values(meta.paper[scenario])) + ' m</b>';
+  chart.innerHTML = '';
+  ORDER.filter(m => DATA.values[m] && DATA.values[m][scenario] !== undefined).forEach(function (m) {
+    const value = DATA.values[m][scenario];
+    const pct = Math.max(2, Math.min(100, DATA.pct[m][scenario]));
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    const cls = (m === 'casadi_optimum') ? 'bar best' : (m[0] === 'R' ? 'bar rl' : 'bar');
+    row.innerHTML = '<div>' + label(m) + '</div>' +
+      '<div class="' + cls + '"><span style="width:' + pct + '%"></span></div>' +
+      '<div class="bar-val">' + value.toLocaleString() + ' m</div>';
+    chart.appendChild(row);
+  });
+}
+select.addEventListener('change', e => render(e.target.value));
+DATA.scenarios.forEach(function (name) {
+  const option = document.createElement('option');
+  option.value = name;
+  option.textContent = name;
+  select.appendChild(option);
+});
+select.value = DATA.scenarios.includes('H_ST') ? 'H_ST' : DATA.scenarios[0];
+render(select.value);
+</script>
+</body></html>
