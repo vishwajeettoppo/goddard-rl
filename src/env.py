@@ -21,14 +21,14 @@ from .features import (
     DRAG_SURCHARGE,
     DT,
     FEATURE_RESIDUAL,
-    G,
-    HINT_EARLY_FRAC,
     H_SCALE,
     H_SCALE_FIXED,
+    HINT_EARLY_FRAC,
     M_DRY,
     MAX_STEPS,
     PENALTY_COEF,
     RHO_0,
+    G,
     build_obs_numba,
     build_observation,
     burn_target_time,
@@ -232,10 +232,9 @@ def singular_arc_u_numba(
     rho = rho_numba(h)
     drag = cd * rho * v * abs(v)
     surface = drag * (1.0 + max(v, 0.0) / c_e) - m * G
-    if t_switch >= 0.0 and t >= 0.0:
-        full_thrust = t < t_switch
-    else:
-        full_thrust = surface < 0.0
+    full_thrust = (
+        t < t_switch if t_switch >= 0.0 and t >= 0.0 else surface < 0.0
+    )
     if full_thrust:
         u = 1.0
     else:
@@ -1206,16 +1205,13 @@ class BatchedGoddardEnv:
 
 
 __all__ = [
-    "BatchedGoddardEnv",
-    "CE_FACTOR",
     "CD_RANGE",
+    "CE_FACTOR",
     "DRAG_SURCHARGE",
     "DT",
+    "EVAL_M_FUEL_GRID",
     "EVAL_PAIRS",
     "EVAL_Q_MAX_GRID",
-    "EVAL_M_FUEL_GRID",
-    "G",
-    "GoddardEnv",
     "HINT_EARLY_FRAC",
     "H_SCALE",
     "H_SCALE_FIXED",
@@ -1225,9 +1221,12 @@ __all__ = [
     "N_BISECT",
     "Q_MAX_RANGE",
     "RHO_0",
-    "RocketEnv",
     "TW_MIN",
     "T_MAX_RANGE",
+    "BatchedGoddardEnv",
+    "G",
+    "GoddardEnv",
+    "RocketEnv",
     "advance_fuel_exact",
     "advance_fuel_exact_numba",
     "build_obs_numba",

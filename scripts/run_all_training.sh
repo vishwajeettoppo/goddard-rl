@@ -32,7 +32,7 @@ train_one() {
     return 0
   fi
   echo "[start] ${ablation} seed ${seed}"
-  OMP_NUM_THREADS=2 NUMBA_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  OMP_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 TORCH_NUM_THREADS=1 \
     .venv/bin/python src/train.py --ablation "$ablation" --seed "$seed" \
       --updates "$UPDATES" --rollout-steps "$ROLLOUT_STEPS" \
       > "results/logs/${ablation}_seed${seed}.out" 2>&1

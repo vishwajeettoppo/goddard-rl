@@ -1,0 +1,15 @@
+{
+  "ablation": "R2",
+  "seed": 101,
+  "obs_dim": 14,
+  "beta_epsilon": 0.01,
+  "feature_mode": "burnout",
+  "reward_mode": "burnout_penalty",
+  "target_mode": "rev1",
+  "residual": false,
+  "use_actor_cap": false,
+  "description": "R1 + burnout features + one-sided early-burnout penalty.",
+  "updates": 120,
+  "wall_s": 555.84,
+  "bc": null
+}

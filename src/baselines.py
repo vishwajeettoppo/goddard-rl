@@ -24,9 +24,10 @@ from __future__ import annotations
 import json
 import math
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
 import numpy as np
 from numba import njit, prange
@@ -36,8 +37,8 @@ from .env import (
     DT,
     EVAL_CD,
     EVAL_T_MAX,
-    MAX_STEPS,
     M_DRY,
+    MAX_STEPS,
     N_BISECT,
     GoddardEnv,
     physics_step_numba,
@@ -170,14 +171,14 @@ def evaluate_policy(
     """Roll one deterministic episode and collect evaluation metrics."""
 
     env.record_trajectory = bool(record_trajectory)
-    obs, info = env.reset()
+    _obs, info = env.reset()
     done = False
     max_q = 0.0
     violations = 0
     t0 = time.perf_counter()
     while not done:
         u = float(policy(env, info))
-        obs, _reward, terminated, truncated, info = env.step(u)
+        _obs, _reward, terminated, truncated, info = env.step(u)
         done = bool(terminated or truncated)
         max_q = max(max_q, float(info["q"]))
         if float(info["q"]) > env.params["Q_max"] * (1.0 + 1e-9):
@@ -596,7 +597,6 @@ def solve_casadi(
         options.update(dict(ipopt_options))
     opti.solver("ipopt", options)
 
-    t_full = m_fuel_0 * c_e / T_max
     # Warm start from the bang-bang rollout of the *same* shared physics.
     hh = vv = 0.0
     mm = M_DRY + m_fuel_0

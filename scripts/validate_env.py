@@ -14,7 +14,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.env import BatchedGoddardEnv, GoddardEnv, singular_arc_u  # noqa: E402
+from src.baselines import build_baseline  # noqa: E402
+from src.env import BatchedGoddardEnv, GoddardEnv  # noqa: E402
 
 CONFIG = yaml.safe_load((ROOT / "configs" / "scenarios.yaml").read_text())
 SCENARIOS = CONFIG["scenarios"]
@@ -22,12 +23,11 @@ CONSTS = CONFIG["physical_constants"]
 
 
 def roll(env: GoddardEnv, policy) -> float:
-    obs, info = env.reset()
+    _obs, info = env.reset()
     done = False
-    reward = 0.0
     while not done:
         u = policy(env, info)
-        obs, reward, term, trunc, info = env.step(u)
+        _obs, _reward, term, trunc, info = env.step(u)
         done = term or trunc
     return env.h_apogee
 
@@ -68,10 +68,11 @@ def run_unconstrained():
                 "Q_max": sc["Q_max"],
             },
         )
-        apogee = roll(env, lambda e, i: singular_arc_u(
-            float(e.state[0]), float(e.state[1]), float(e.state[2]),
-            CONSTS["Tmax"], CONSTS["cd"], sc["Q_max"], use_cap=False,
-        ))
+        policy = build_baseline(
+            "unconstrained_optimal",
+            {"m_fuel_0": sc["m_fuel_0"], "Q_max": sc["Q_max"]},
+        )
+        apogee = roll(env, policy)
         ref = sc["paper_apogee_m"]["unconstrained_optimal"]
         err = apogee - ref
         errors.append(abs(err))
@@ -98,4 +99,9 @@ if __name__ == "__main__":
     e1 = run_bang_bang()
     e2 = run_unconstrained()
     bench_batched()
-    print(f"\nBang-bang max error: {e1:.2f} m | Unconstrained max error: {e2:.2f} m")
+    print(f"\nBang-bang max error: {e1:.2f} m")
+    print(
+        "Unconstrained-optimal max error: "
+        f"{e2:.2f} m (dominated by the three heavy-fuel/tight-Qmax rows that "
+        "the paper does not specify; see docs/reproduction.md)"
+    )

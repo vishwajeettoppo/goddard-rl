@@ -23,13 +23,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
+import os
 import sys
 import time
 from collections import deque
-from dataclasses import dataclass
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 import torch
@@ -40,12 +40,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# The batched environment already parallelises over environments with Numba;
+# extra PyTorch intra-op threads only oversubscribe the CPU when several seeds
+# are trained at once.
+torch.set_num_threads(int(os.environ.get("TORCH_NUM_THREADS", "1")))
+
 from src.env import (  # noqa: E402
-    CE_FACTOR,
-    EVAL_CD,
-    EVAL_T_MAX,
-    MAX_STEPS,
-    M_DRY,
     BatchedGoddardEnv,
     GoddardEnv,
     singular_arc_u,

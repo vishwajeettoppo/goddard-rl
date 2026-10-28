@@ -1,0 +1,15 @@
+{
+  "ablation": "R6",
+  "seed": 42,
+  "obs_dim": 14,
+  "beta_epsilon": 0.01,
+  "feature_mode": "burnout",
+  "reward_mode": "burnout_penalty",
+  "target_mode": "rev1",
+  "residual": false,
+  "use_actor_cap": true,
+  "description": "R2 + actor-side Q_max cap in training and mode-based evaluation.",
+  "updates": 120,
+  "wall_s": 577.89,
+  "bc": null
+}

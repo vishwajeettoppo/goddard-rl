@@ -1,0 +1,19 @@
+{
+  "ablation": "R3",
+  "seed": 2026,
+  "obs_dim": 14,
+  "beta_epsilon": 0.01,
+  "feature_mode": "burnout",
+  "reward_mode": "burnout_penalty",
+  "target_mode": "rev1",
+  "residual": false,
+  "use_actor_cap": false,
+  "description": "R2 + behaviour-cloning warm start from the singular-arc law.",
+  "updates": 120,
+  "wall_s": 565.96,
+  "bc": {
+    "bc_samples": 20897.0,
+    "bc_final_mse": 0.006865978054702282,
+    "bc_initial_mse": 0.04302198821678758
+  }
+}

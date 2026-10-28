@@ -56,7 +56,6 @@ def main() -> int:
     args = parser.parse_args()
 
     config = load_config()
-    constants = config["physical_constants"]
     all_scenarios = config["scenarios"]
     names = args.scenarios.split(",") if args.scenarios else list(all_scenarios)
     methods = [m.strip() for m in args.methods.split(",") if m.strip()]
@@ -71,7 +70,7 @@ def main() -> int:
         existing = pd.read_csv(out_path)
         if not set(COLUMNS).issubset(existing.columns):
             existing = pd.DataFrame(columns=COLUMNS)
-    done = set(zip(existing.get("scenario", []), existing.get("method", [])))
+    done = set(zip(existing.get("scenario", []), existing.get("method", []), strict=False))
 
     traj_dir = ROOT / args.traj_dir
     rows: list[dict] = []

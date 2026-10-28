@@ -22,10 +22,11 @@ from typing import Any
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-import yaml  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -35,11 +36,11 @@ ABLATIONS = ("R0", "R1", "R2", "R3", "R4", "R5", "R6")
 LABELS = {
     "R0": "R0 unimodal Beta",
     "R1": "R1 boundary Beta",
-    "R2": "+ burnout penalty",
-    "R3": "+ BC warm start",
-    "R4": "+ residual action",
-    "R5": "+ potential shaping",
-    "R6": "+ Q-cap / mode eval",
+    "R2": "R2 + burnout penalty",
+    "R3": "R3 + BC warm start",
+    "R4": "R4 + residual action",
+    "R5": "R5 + potential shaping",
+    "R6": "R6 + Q-cap / mode eval",
     "bang_bang": "Bang-Bang",
     "mc_local_greedy": "MC-Local-Greedy",
     "unconstrained_optimal": "Unconstrained Optimal",
@@ -77,9 +78,11 @@ def _style() -> None:
     )
 
 
-def load_logs(log_dir: Path) -> dict[str, pd.DataFrame]:
+def load_logs(log_dir: Path | list[Path]) -> dict[str, pd.DataFrame]:
     frames: dict[str, list[pd.DataFrame]] = {}
-    for path in sorted(log_dir.glob("*.jsonl")):
+    directories = log_dir if isinstance(log_dir, list) else [log_dir]
+    paths = [path for directory in directories for path in sorted(directory.glob("*.jsonl"))]
+    for path in paths:
         ablation = path.name.split("_seed")[0]
         rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
         if not rows:
@@ -136,7 +139,7 @@ def plot_learning_curves(logs: dict[str, pd.DataFrame], fig_dir: Path) -> Path:
 
 def plot_entropy_collapse(logs: dict[str, pd.DataFrame], fig_dir: Path) -> Path:
     fig, axis = plt.subplots(figsize=(5.4, 3.4))
-    for ablation in ("R0", "R1", "R3"):
+    for ablation in ("R0", "R1"):
         if ablation not in logs:
             continue
         x, mean, std = _aggregate([logs[ablation]], "entropy")
@@ -144,8 +147,19 @@ def plot_entropy_collapse(logs: dict[str, pd.DataFrame], fig_dir: Path) -> Path:
         axis.fill_between(x, mean - std, mean + std, color=COLORS.get(ablation), alpha=0.15)
     axis.set_xlabel("PPO update")
     axis.set_ylabel("policy entropy (nats)")
-    axis.set_title("Failure demo: entropy collapse of the unimodal Beta head")
+    axis.set_title("Entropy of the Beta head during training")
     axis.legend(frameon=False)
+    finite = [
+        value
+        for ablation in ("R0", "R1")
+        if ablation in logs
+        for value in _aggregate([logs[ablation]], "entropy")[1]
+        if np.isfinite(value)
+    ]
+    if finite:
+        low, high = min(finite), max(finite)
+        pad = 0.08 * max(high - low, 0.05)
+        axis.set_ylim(low - pad, high + pad)
     fig.tight_layout()
     path = fig_dir / "entropy_collapse.png"
     fig.savefig(path)
@@ -187,7 +201,7 @@ def plot_ablation_bars(
         pct = [100.0 * value / best[name] for name, value in per_scenario.items()]
         rows.append({"method": ablation, "pct": float(np.mean(pct)), "std": float(np.std(pct))})
     for method, group in baselines.groupby("method"):
-        pct = [100.0 * value / best[row.scenario] for row, value in group.iterrows()]
+        pct = [100.0 * row.apogee / best[row.scenario] for row in group.itertuples()]
         rows.append({"method": method, "pct": float(np.mean(pct)), "std": float(np.std(pct))})
     table = pd.DataFrame(rows).sort_values("pct")
     fig, axis = plt.subplots(figsize=(6.4, 0.36 * len(table) + 1.2))
@@ -199,10 +213,10 @@ def plot_ablation_bars(
         alpha=0.88,
     )
     axis.set_xlabel("% of best-known apogee (mean over 18 scenarios)")
-    axis.set_xlim(60, 102)
+    axis.set_xlim(60, 106)
     axis.set_title("Ablation ladder: each change adds one ingredient")
-    for index, (value, name) in enumerate(zip(table["pct"], table["method"])):
-        axis.text(value + 0.4, index, f"{value:.1f}%", va="center", fontsize=8)
+    for index, value in enumerate(table["pct"]):
+        axis.text(min(value + 0.6, 100.8), index, f"{value:.1f}%", va="center", fontsize=8)
     fig.tight_layout()
     path = fig_dir / "ablation_bars.png"
     fig.savefig(path)
@@ -260,14 +274,19 @@ def plot_trajectory(
     candidates = [f"{scenario}__{method}.npz" for method in methods]
     candidates += [f"{scenario}__{method}_seed42.npz" for method in methods]
     candidates += [f"{scenario}__{method}_seed101.npz" for method in methods]
+    plotted_methods: set[str] = set()
     for path in candidates:
         file = traj_dir / path
         if not file.exists():
             continue
+        base_method = path.split("__")[1].replace(".npz", "").split("_seed")[0]
+        if base_method in plotted_methods:
+            continue
+        plotted_methods.add(base_method)
         data = np.load(file)
         method = path.split("__")[1].replace(".npz", "")
         label = LABELS.get(method.split("_seed")[0], method)
-        color = COLORS.get(method.split("_seed")[0], None)
+        color = COLORS.get(method.split("_seed")[0])
         axes[0].plot(data["t"], data["h"], label=label, color=color)
         axes[1].plot(data["t"], data["v"], color=color)
         axes[2].plot(data["t"], data["u_applied"], color=color)
@@ -283,6 +302,71 @@ def plot_trajectory(
     axes[0].legend(frameon=False, fontsize=7)
     fig.tight_layout()
     path = fig_dir / f"trajectory_{scenario}.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def plot_policy_shapes(fig_dir: Path, scenario: str = "H_ST") -> Path | None:
+    """Beta densities along one deterministic rollout for R0 and R1.
+
+    The unimodal head (epsilon = 1) can only put a bump near its mean; the
+    boundary head (epsilon = 0.01) can put mass on 0 and 1, which is where
+    bang-bang-like throttles live.  R4 is excluded because its Beta is over the
+    residual latent, not over the throttle.
+    """
+
+    from src.env import GoddardEnv
+    from src.ppo import BetaActorCritic
+
+    checkpoints = {}
+    for ablation in ("R0", "R1"):
+        found = sorted((ROOT / "results" / "checkpoints").glob(f"{ablation}_seed42.pt"))
+        if found:
+            checkpoints[ablation] = found[0]
+    if len(checkpoints) < 2:
+        return None
+
+    grid = np.linspace(0.001, 0.999, 200)
+    times = (5.0, 20.0, 40.0)
+    fig, axes = plt.subplots(1, len(checkpoints), figsize=(3.4 * len(checkpoints), 3.1), sharey=True)
+    if len(checkpoints) == 1:
+        axes = [axes]
+    scenario_cfg = yaml.safe_load((ROOT / "configs" / "scenarios.yaml").read_text())["scenarios"][scenario]
+    for axis, (ablation, path) in zip(axes, checkpoints.items(), strict=False):
+        model, meta = BetaActorCritic.load(path)
+        env = GoddardEnv(
+            params={
+                "m_fuel_0": scenario_cfg["m_fuel_0"],
+                "T_max": 200000.0,
+                "cd": 1.5,
+                "Q_max": scenario_cfg["Q_max"],
+            },
+            feature_mode=meta.get("feature_mode", "base"),
+            target_mode=meta.get("target_mode"),
+        )
+        obs, _ = env.reset()
+        done = False
+        while not done:
+            throttle, _logp, _value = model.act(obs[None, :], deterministic=True)
+            obs, _reward, terminated, truncated, _info = env.step(float(throttle[0]))
+            done = bool(terminated or truncated)
+            for stamp in times:
+                if abs(env.t_now - stamp) < 0.05:
+                    with torch.no_grad():
+                        alpha, beta = model.concentrations(torch.as_tensor(obs[None, :]))
+                        dist = torch.distributions.Beta(alpha, beta)
+                        log_density = dist.log_prob(torch.as_tensor(grid, dtype=torch.float32))
+                    density = np.exp(log_density.detach().numpy())
+                    axis.plot(grid, density, label=f"t = {stamp:.0f} s")
+        axis.set_title(LABELS.get(ablation, ablation))
+        axis.set_xlabel("throttle u")
+        axis.set_xlim(0, 1)
+        axis.legend(frameon=False, fontsize=7)
+    axes[0].set_ylabel("Beta density")
+    fig.suptitle("Beta policy shape along one rollout (axes are the sampled latent)", y=0.99)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    path = fig_dir / "policy_shapes.png"
     fig.savefig(path)
     plt.close(fig)
     return path
@@ -335,7 +419,7 @@ def main(argv: list[str] | None = None) -> int:
 
     config = yaml.safe_load((ROOT / args.scenarios).read_text())
     scenarios = config["scenarios"]
-    logs = load_logs(ROOT / args.log_dir)
+    logs = load_logs([ROOT / args.log_dir, ROOT / "results" / "checkpoints"])
     eval_df = load_eval(ROOT / args.eval)
     baselines = pd.read_csv(ROOT / args.baselines) if (ROOT / args.baselines).exists() else pd.DataFrame()
 
@@ -343,6 +427,9 @@ def main(argv: list[str] | None = None) -> int:
     if logs:
         outputs.append(plot_learning_curves(logs, fig_dir))
         outputs.append(plot_entropy_collapse(logs, fig_dir))
+    shapes = plot_policy_shapes(fig_dir)
+    if shapes:
+        outputs.append(shapes)
     if not eval_df.empty and not baselines.empty:
         outputs.append(plot_ablation_bars(eval_df, baselines, scenarios, fig_dir))
         outputs.append(plot_heatmap(eval_df, baselines, scenarios, fig_dir))

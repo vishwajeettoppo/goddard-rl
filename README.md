@@ -16,7 +16,21 @@ $ python src/evaluate.py --ablations all      # 18 held-out scenarios, determini
 ```
 
 <!-- results:start -->
-_No ablation table yet._
+| Method | Kind | Mean apogee (m) | Mean % best | Worst % best | Light | Nominal | Heavy |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| R4 · residual action | RL | 18,074 | **89.3** | 53.5 | 99.6 | 94.9 | 73.4 |
+| R2 · burnout penalty | RL | 18,532 | **85.4** | 69.0 | 88.7 | 88.4 | 78.9 |
+| R6 · Q-cap / mode eval | RL | 18,363 | **84.6** | 66.6 | 88.0 | 87.5 | 78.2 |
+| R3 · BC warm start | RL | 17,944 | **83.3** | 62.4 | 88.4 | 84.9 | 76.5 |
+| R0 · unimodal Beta | RL | 16,592 | **76.9** | 44.4 | 81.4 | 78.4 | 71.0 |
+| R1 · boundary Beta | RL | 16,587 | **76.9** | 44.9 | 81.4 | 78.3 | 71.0 |
+| R5 · potential shaping | RL | 16,582 | **76.8** | 45.0 | 81.1 | 78.3 | 71.0 |
+| CasADi optimum | baseline | 22,766 | **100.0** | 100.0 | 100.0 | 100.0 | 100.0 |
+| MC-Local-Greedy | baseline | 22,468 | **98.8** | 96.2 | 98.9 | 98.9 | 98.6 |
+| Unconstrained Optimal | baseline | 20,026 | **93.8** | 44.8 | 100.0 | 98.7 | 82.9 |
+| Bang-Bang | baseline | 16,427 | **75.8** | 38.6 | 79.3 | 77.6 | 70.4 |
+
+Best learned policy: **R4 · residual action** at **89.3%** of best-known apogee on average, with a worst-case scenario at 53% and 73% on the heavy-fuel subset.
 <!-- results:end -->
 
 ## What is here
@@ -89,19 +103,28 @@ the table is trained on.
 1. **The evaluator is the easy part to get subtly wrong.** Fuel-out splitting,
    clamp depth and where the 5% surcharge is applied all move `H_MT` by hundreds of
    metres. Ours lands within 0.3% of the paper there and within ~1 m everywhere else.
-2. **Entropy collapse is real but not the whole story.** R0's unimodal head collapses
-   (see `results/figures/entropy_collapse.png`); the boundary head keeps exploring
-   and is consistently better on tight-`Qmax` scenarios.
-3. **The residual action is the single biggest improvement.** Baking the
-   bang–singular–coast structure into the action parameterisation lifts the agent from
-   roughly bang-bang quality to within a few percent of MC-Local-Greedy after very few
-   updates — see the ablation table.
-4. **BC warm start trades exploration for speed.** It gives a strong initial policy
-   but drives entropy down immediately, so it plateaus early unless the entropy
-   coefficient is raised.
-5. **Potential shaping is policy-invariant under `γ = 1`** only if the potential is
-   zero on terminal states; we enforce that, which keeps the optimum unchanged while
-   densifying credit assignment.
+2. **The residual action is the single biggest improvement.** `u = clip(u_singular + δ)`
+   lifts the agent from 76.9% to **89.3%** of best-known apogee, with 99.6% on light
+   fuel and 94.9% on nominal scenarios. On `N_M` it matches the unconstrained optimum
+   (15,756 m) and on `L_*` it reaches ~3,490 m against 3,372 m for Bang-Bang.
+3. **The burnout penalty is what fixes heavy fuel.** R2/R6 reach 34–35 km on `H_M`
+   and `H_Lo` where R4 stalls at 26–27 km; heavy episodes are long and burning early
+   in dense air is expensive. The two fixes are complementary.
+4. **The boundary head is not a free win at this budget.** After 120 updates R0 and R1
+   both sit at 76.9% (bang-bang quality). The difference shows up in policy shape and
+   entropy (see `results/figures/policy_shapes.png`), not in apogee; the paper's
+   separation needed 500–1000 updates.
+5. **BC warm start buys speed, not quality.** It starts from a near-deterministic
+   singular-arc imitation (entropy −2.3 nats) and finishes at 83.3%: better than R0/R1,
+   worse than R2, and with exploration already spent.
+6. **Potential shaping was neutral here (76.8%).** With `γ = 1` the shaping telescopes
+   to a constant only if the potential is zero on terminal states — we enforce that —
+   and the altitude reward is already dense enough that nothing is gained.
+7. **Q-cap + mode evaluation (R6)** is the second-best heavy-fuel variant and removes
+   the Beta train/eval mismatch, at a small cost on light fuel.
+
+Full write-up: [`REPORT.md`](REPORT.md). Exact deviations from the paper:
+[`docs/reproduction.md`](docs/reproduction.md).
 
 ## Presentations
 

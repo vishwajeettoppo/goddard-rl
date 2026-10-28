@@ -19,9 +19,10 @@ implements all three so the train/eval mismatch can be measured (R6).
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import numpy as np
 import torch
@@ -193,7 +194,7 @@ class BetaActorCritic(nn.Module):
         torch.save(payload, path)
 
     @classmethod
-    def load(cls, path: str | Path) -> tuple["BetaActorCritic", dict[str, Any]]:
+    def load(cls, path: str | Path) -> tuple[BetaActorCritic, dict[str, Any]]:
         payload = torch.load(path, map_location="cpu", weights_only=False)
         model = cls(
             int(payload["obs_dim"]),
@@ -231,7 +232,7 @@ class PPOConfig:
     hidden_sizes: tuple[int, ...] = (256, 256)
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "PPOConfig":
+    def from_dict(cls, payload: Mapping[str, Any]) -> PPOConfig:
         known = {f for f in cls.__dataclass_fields__}
         values = {key: value for key, value in payload.items() if key in known}
         if "hidden_sizes" in values:

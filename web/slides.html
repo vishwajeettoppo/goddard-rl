@@ -33,8 +33,8 @@ th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
 environment and baselines, retrain the ablation ladder, and add a residual action that
 closes most of the gap to the best non-RL baseline.</p>
 <div class="kpi">
-<div><span class="small">Best RL</span><b>n/a</b><span class="small">of best-known apogee</span></div>
-<div><span class="small">Gain over R0</span><b>n/a</b><span class="small">mean over 18 scenarios</span></div>
+<div><span class="small">Best RL</span><b>R4 · 89.3%</b><span class="small">of best-known apogee</span></div>
+<div><span class="small">Gain over R0</span><b>+12.5 pts</b><span class="small">mean over 18 scenarios</span></div>
 <div><span class="small">Evaluator match</span><b>≤ 1 m</b><span class="small">on 17 of 18 Bang-Bang rows</span></div>
 </div>
 <p class="small">Arrow keys navigate.</p>
@@ -101,7 +101,7 @@ sustain exploration at the boundary.</li>
 <h2>Each change adds one ingredient</h2>
 <div class="two">
 <div><img src="figures/ablation_bars.png" alt="ablation bars"></div>
-<div><table><tr><th>Method</th><th class="num">Mean % best</th><th class="num">Heavy</th></tr></table>
+<div><table><tr><th>Method</th><th class="num">Mean % best</th><th class="num">Heavy</th></tr><tr><td>R4 · residual action</td><td class='num'>89.3%</td><td class='num'>73.4%</td></tr><tr><td>R2 · burnout penalty</td><td class='num'>85.4%</td><td class='num'>78.9%</td></tr><tr><td>R6 · Q-cap / mode eval</td><td class='num'>84.6%</td><td class='num'>78.2%</td></tr><tr><td>R3 · BC warm start</td><td class='num'>83.3%</td><td class='num'>76.5%</td></tr><tr><td>R0 · unimodal Beta</td><td class='num'>76.9%</td><td class='num'>71.0%</td></tr><tr><td>R1 · boundary Beta</td><td class='num'>76.9%</td><td class='num'>71.0%</td></tr></table>
 <p class="small">Percent of best-known apogee, 18 held-out scenarios, three seeds for RL.</p>
 </div></div>
 </section>

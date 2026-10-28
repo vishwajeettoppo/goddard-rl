@@ -1,0 +1,15 @@
+{
+  "ablation": "R0",
+  "seed": 101,
+  "obs_dim": 12,
+  "beta_epsilon": 1.0,
+  "feature_mode": "base",
+  "reward_mode": "base",
+  "target_mode": null,
+  "residual": false,
+  "use_actor_cap": false,
+  "description": "Baseline PPO, base observations, unimodal Beta head.",
+  "updates": 120,
+  "wall_s": 563.81,
+  "bc": null
+}

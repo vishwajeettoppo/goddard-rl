@@ -36,11 +36,11 @@ sys.path.insert(0, str(ROOT))
 METHOD_LABELS = {
     "R0": "R0 · unimodal Beta",
     "R1": "R1 · boundary Beta",
-    "R2": "R2 · + burnout penalty",
-    "R3": "R3 · + BC warm start",
-    "R4": "R4 · + residual action",
-    "R5": "R5 · + potential shaping",
-    "R6": "R6 · + Q-cap / mode eval",
+    "R2": "R2 · burnout penalty",
+    "R3": "R3 · BC warm start",
+    "R4": "R4 · residual action",
+    "R5": "R5 · potential shaping",
+    "R6": "R6 · Q-cap / mode eval",
     "bang_bang": "Bang-Bang",
     "mc_local_greedy": "MC-Local-Greedy",
     "unconstrained_optimal": "Unconstrained Optimal",
@@ -289,7 +289,8 @@ def dashboard_html(
     payload = json.dumps({**data, "labels": json.loads(labels)})
     figures = [
         ("learning_curves.png", "Training apogee and Beta entropy per update, mean ± std over seeds."),
-        ("entropy_collapse.png", "Failure demo: the unimodal head (R0) loses entropy fastest."),
+        ("entropy_collapse.png", "Beta entropy per update: R0 drifts down further than R1."),
+        ("policy_shapes.png", "Policy shape along a rollout: R0 concentrates on one bump, R1 keeps a broader body."),
         ("ablation_bars.png", "Mean percent of best-known apogee over the 18 held-out scenarios."),
         ("heatmap.png", "Per-scenario percent of best-known apogee."),
         ("trajectory_H_ST.png", "Altitude, velocity and applied throttle for a representative heavy scenario."),
@@ -317,6 +318,7 @@ column to within 1&nbsp;m on 17 of 18 scenarios; the best agent reaches
 {html.escape(cards[0][1]) if cards else "n/a"} of the best-known apogee.</p>
 <p style="margin-top:14px"><a href="slides.html">Slides</a> ·
 <a href="{html.escape(git_url)}">Source</a> ·
+<a href="{html.escape(git_url)}/blob/main/REPORT.md">Report</a> ·
 <a href="https://arxiv.org/abs/2610.31014">Paper</a></p>
 </div></header>
 <main class="wrap">
@@ -355,8 +357,8 @@ agent burning propellant in the thickest air.</li>
 but suppresses exploration.</li>
 <li><strong>R4</strong>: residual action around the singular arc bakes the structure in
 and is the largest single gain.</li>
-<li><strong>R5</strong>: potential-based shaping with a terminal-zero potential preserves
-the optimal policy while densifying credit assignment.</li>
+<li><strong>R5</strong>: potential-based shaping with a terminal-zero potential is neutral
+here (76.8%) because the altitude reward is already dense.</li>
 <li><strong>R6</strong>: an actor-side max-Q cap plus mode-based evaluation removes the
 Beta train/eval mismatch.</li>
 </ol></section>

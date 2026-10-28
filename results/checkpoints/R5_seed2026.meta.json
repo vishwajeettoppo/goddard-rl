@@ -1,0 +1,15 @@
+{
+  "ablation": "R5",
+  "seed": 2026,
+  "obs_dim": 14,
+  "beta_epsilon": 0.01,
+  "feature_mode": "burnout",
+  "reward_mode": "potential_energy",
+  "target_mode": "rev2_quadratic",
+  "residual": false,
+  "use_actor_cap": false,
+  "description": "R2 with potential-based energy shaping replacing the penalty.",
+  "updates": 120,
+  "wall_s": 585.22,
+  "bc": null
+}
