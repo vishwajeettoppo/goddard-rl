@@ -1,0 +1,31 @@
+# Virtual environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Numerical caches
+__pycache__/
+*.nbi
+*.nbc
+.numba_cache/
+
+# Reference clone (read-only, see README for the clone command)
+reference/
+
+# Large or regenerable artefacts
+results/checkpoints/*.pt
+results/logs/*.out
+results/trajectories/*.npz
+results/cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+.ruff_cache/
+
+# Publishing
+docs_node/
+node_modules/

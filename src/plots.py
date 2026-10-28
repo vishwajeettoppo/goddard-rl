@@ -1,0 +1,366 @@
+"""Figures for the report, slides and demo notebook.
+
+All plots read the artefacts produced by the other entry points, so they can be
+regenerated at any time without retraining:
+
+* ``results/logs/<ablation>_seed<seed>.jsonl`` -- PPO update logs.
+* ``results/baselines.csv`` -- non-RL baselines on the 18 scenarios.
+* ``results/eval_rl.csv`` -- trained agents on the same scenarios.
+* ``results/trajectories/*.npz`` -- deterministic rollouts.
+
+Run ``python src/plots.py`` to regenerate every figure in ``results/figures``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import yaml  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+ABLATIONS = ("R0", "R1", "R2", "R3", "R4", "R5", "R6")
+LABELS = {
+    "R0": "R0 unimodal Beta",
+    "R1": "R1 boundary Beta",
+    "R2": "+ burnout penalty",
+    "R3": "+ BC warm start",
+    "R4": "+ residual action",
+    "R5": "+ potential shaping",
+    "R6": "+ Q-cap / mode eval",
+    "bang_bang": "Bang-Bang",
+    "mc_local_greedy": "MC-Local-Greedy",
+    "unconstrained_optimal": "Unconstrained Optimal",
+    "casadi_optimum": "CasADi optimum",
+}
+COLORS = {
+    "R0": "#d1495b",
+    "R1": "#edae49",
+    "R2": "#00798c",
+    "R3": "#30638e",
+    "R4": "#003d5b",
+    "R5": "#8f2d56",
+    "R6": "#5c8001",
+    "bang_bang": "#8d99ae",
+    "mc_local_greedy": "#2a9d8f",
+    "unconstrained_optimal": "#e76f51",
+    "casadi_optimum": "#000000",
+}
+
+
+def _style() -> None:
+    plt.rcParams.update(
+        {
+            "figure.dpi": 140,
+            "savefig.dpi": 160,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "grid.alpha": 0.25,
+            "font.size": 9,
+            "axes.titlesize": 10,
+            "axes.labelsize": 9,
+            "legend.fontsize": 8,
+        }
+    )
+
+
+def load_logs(log_dir: Path) -> dict[str, pd.DataFrame]:
+    frames: dict[str, list[pd.DataFrame]] = {}
+    for path in sorted(log_dir.glob("*.jsonl")):
+        ablation = path.name.split("_seed")[0]
+        rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+        if not rows:
+            continue
+        frames.setdefault(ablation, []).append(pd.DataFrame(rows))
+    return {name: pd.concat(parts, ignore_index=True) for name, parts in frames.items()}
+
+
+def _aggregate(frames: list[pd.DataFrame], column: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    merged = pd.concat([frame[["update", column]] for frame in frames])
+    grouped = merged.groupby("update")[column]
+    mean = grouped.mean()
+    std = grouped.std().fillna(0.0)
+    return mean.index.to_numpy(), mean.to_numpy(), std.to_numpy()
+
+
+def plot_learning_curves(logs: dict[str, pd.DataFrame], fig_dir: Path) -> Path:
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.6))
+    for ablation in ABLATIONS:
+        if ablation not in logs:
+            continue
+        frames = [logs[ablation]]
+        x, mean, std = _aggregate(frames, "mean_apogee_train")
+        axes[0].plot(x, mean, label=LABELS.get(ablation, ablation), color=COLORS.get(ablation))
+        axes[0].fill_between(x, mean - std, mean + std, color=COLORS.get(ablation), alpha=0.15)
+        entropy_x, entropy_mean, entropy_std = _aggregate(frames, "entropy")
+        axes[1].plot(
+            entropy_x,
+            entropy_mean,
+            label=LABELS.get(ablation, ablation),
+            color=COLORS.get(ablation),
+        )
+        axes[1].fill_between(
+            entropy_x,
+            entropy_mean - entropy_std,
+            entropy_mean + entropy_std,
+            color=COLORS.get(ablation),
+            alpha=0.15,
+        )
+    axes[0].set_xlabel("PPO update")
+    axes[0].set_ylabel("mean apogee during training (m)")
+    axes[0].set_title("Training apogee (training distribution)")
+    axes[1].set_xlabel("PPO update")
+    axes[1].set_ylabel("Beta policy entropy (nats)")
+    axes[1].set_title("Policy entropy: R0 collapse vs boundary mode")
+    axes[1].axhline(0.0, color="black", linewidth=0.6, linestyle=":")
+    axes[0].legend(frameon=False, ncol=1)
+    fig.tight_layout()
+    path = fig_dir / "learning_curves.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def plot_entropy_collapse(logs: dict[str, pd.DataFrame], fig_dir: Path) -> Path:
+    fig, axis = plt.subplots(figsize=(5.4, 3.4))
+    for ablation in ("R0", "R1", "R3"):
+        if ablation not in logs:
+            continue
+        x, mean, std = _aggregate([logs[ablation]], "entropy")
+        axis.plot(x, mean, label=LABELS.get(ablation, ablation), color=COLORS.get(ablation))
+        axis.fill_between(x, mean - std, mean + std, color=COLORS.get(ablation), alpha=0.15)
+    axis.set_xlabel("PPO update")
+    axis.set_ylabel("policy entropy (nats)")
+    axis.set_title("Failure demo: entropy collapse of the unimodal Beta head")
+    axis.legend(frameon=False)
+    fig.tight_layout()
+    path = fig_dir / "entropy_collapse.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def load_eval(eval_path: Path) -> pd.DataFrame:
+    if not eval_path.exists():
+        return pd.DataFrame()
+    frame = pd.read_csv(eval_path)
+    if "ablation" not in frame.columns:
+        frame["ablation"] = frame["method"].str.split("_seed").str[0]
+    return frame
+
+
+def best_known_table(eval_df: pd.DataFrame, baselines: pd.DataFrame, scenarios: dict[str, Any]) -> dict[str, float]:
+    best: dict[str, float] = {
+        name: float(max(values["paper_apogee_m"].values())) for name, values in scenarios.items()
+    }
+    for frame in (eval_df, baselines):
+        if frame.empty:
+            continue
+        for name, group in frame.groupby("scenario"):
+            best[name] = max(best.get(name, 0.0), float(group["apogee"].max()))
+    return best
+
+
+def plot_ablation_bars(
+    eval_df: pd.DataFrame, baselines: pd.DataFrame, scenarios: dict[str, Any], fig_dir: Path
+) -> Path:
+    best = best_known_table(eval_df, baselines, scenarios)
+    rows: list[dict[str, Any]] = []
+    for ablation in ABLATIONS:
+        subset = eval_df[eval_df["ablation"] == ablation]
+        if subset.empty:
+            continue
+        per_scenario = subset.groupby("scenario")["apogee"].mean()
+        pct = [100.0 * value / best[name] for name, value in per_scenario.items()]
+        rows.append({"method": ablation, "pct": float(np.mean(pct)), "std": float(np.std(pct))})
+    for method, group in baselines.groupby("method"):
+        pct = [100.0 * value / best[row.scenario] for row, value in group.iterrows()]
+        rows.append({"method": method, "pct": float(np.mean(pct)), "std": float(np.std(pct))})
+    table = pd.DataFrame(rows).sort_values("pct")
+    fig, axis = plt.subplots(figsize=(6.4, 0.36 * len(table) + 1.2))
+    axis.barh(
+        [LABELS.get(name, name) for name in table["method"]],
+        table["pct"],
+        xerr=table["std"],
+        color=[COLORS.get(name, "#555") for name in table["method"]],
+        alpha=0.88,
+    )
+    axis.set_xlabel("% of best-known apogee (mean over 18 scenarios)")
+    axis.set_xlim(60, 102)
+    axis.set_title("Ablation ladder: each change adds one ingredient")
+    for index, (value, name) in enumerate(zip(table["pct"], table["method"])):
+        axis.text(value + 0.4, index, f"{value:.1f}%", va="center", fontsize=8)
+    fig.tight_layout()
+    path = fig_dir / "ablation_bars.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def plot_heatmap(
+    eval_df: pd.DataFrame, baselines: pd.DataFrame, scenarios: dict[str, Any], fig_dir: Path
+) -> Path:
+    best = best_known_table(eval_df, baselines, scenarios)
+    matrix: dict[str, dict[str, float]] = {}
+    for method, group in baselines.groupby("method"):
+        matrix[method] = {
+            row.scenario: 100.0 * row.apogee / best[row.scenario] for row in group.itertuples()
+        }
+    for ablation in ABLATIONS:
+        subset = eval_df[eval_df["ablation"] == ablation]
+        if subset.empty:
+            continue
+        per = subset.groupby("scenario")["apogee"].mean()
+        matrix[ablation] = {name: 100.0 * value / best[name] for name, value in per.items()}
+    frame = pd.DataFrame(matrix).T
+    order = [name for name in scenarios if name in frame.columns]
+    frame = frame[order]
+    methods = [m for m in ("casadi_optimum", "mc_local_greedy", "unconstrained_optimal", "bang_bang") if m in frame.index]
+    methods += [m for m in ABLATIONS if m in frame.index]
+    frame = frame.loc[methods]
+    fig, axis = plt.subplots(figsize=(11.0, 0.34 * len(frame) + 1.6))
+    image = axis.imshow(frame.to_numpy(), aspect="auto", cmap="RdYlGn", vmin=55, vmax=100)
+    axis.set_xticks(range(len(frame.columns)), frame.columns, rotation=45, ha="right")
+    axis.set_yticks(range(len(frame.index)), [LABELS.get(m, m) for m in frame.index])
+    for i in range(frame.shape[0]):
+        for j in range(frame.shape[1]):
+            value = frame.iloc[i, j]
+            if np.isfinite(value):
+                axis.text(j, i, f"{value:.0f}", ha="center", va="center", fontsize=6.6)
+    axis.set_title("% of best-known apogee per scenario")
+    fig.colorbar(image, ax=axis, shrink=0.7, label="% of best known")
+    fig.tight_layout()
+    path = fig_dir / "heatmap.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def plot_trajectory(
+    scenario: str,
+    methods: list[str],
+    traj_dir: Path,
+    fig_dir: Path,
+) -> Path | None:
+    fig, axes = plt.subplots(3, 1, figsize=(6.8, 7.0), sharex=True)
+    plotted = False
+    candidates = [f"{scenario}__{method}.npz" for method in methods]
+    candidates += [f"{scenario}__{method}_seed42.npz" for method in methods]
+    candidates += [f"{scenario}__{method}_seed101.npz" for method in methods]
+    for path in candidates:
+        file = traj_dir / path
+        if not file.exists():
+            continue
+        data = np.load(file)
+        method = path.split("__")[1].replace(".npz", "")
+        label = LABELS.get(method.split("_seed")[0], method)
+        color = COLORS.get(method.split("_seed")[0], None)
+        axes[0].plot(data["t"], data["h"], label=label, color=color)
+        axes[1].plot(data["t"], data["v"], color=color)
+        axes[2].plot(data["t"], data["u_applied"], color=color)
+        plotted = True
+    if not plotted:
+        plt.close(fig)
+        return None
+    axes[0].set_ylabel("altitude (m)")
+    axes[1].set_ylabel("velocity (m/s)")
+    axes[2].set_ylabel("throttle (applied)")
+    axes[2].set_xlabel("time (s)")
+    axes[0].set_title(f"Scenario {scenario}: altitude, velocity, throttle")
+    axes[0].legend(frameon=False, fontsize=7)
+    fig.tight_layout()
+    path = fig_dir / f"trajectory_{scenario}.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def plot_seed_spread(eval_df: pd.DataFrame, fig_dir: Path) -> Path | None:
+    if eval_df.empty:
+        return None
+    grouped = eval_df.groupby(["ablation", "scenario"])["apogee"].agg(["mean", "std", "min", "max"]).reset_index()
+    fig, axis = plt.subplots(figsize=(7.2, 3.4))
+    for index, ablation in enumerate(ABLATIONS):
+        subset = grouped[grouped["ablation"] == ablation]
+        if subset.empty:
+            continue
+        axis.errorbar(
+            index + 1,
+            subset["mean"].mean(),
+            yerr=[[(subset["mean"] - subset["min"]).mean()], [(subset["max"] - subset["mean"]).mean()]],
+            fmt="o",
+            color=COLORS.get(ablation),
+            capsize=4,
+        )
+    axis.set_xticks(range(1, len(ABLATIONS) + 1), [LABELS[a] for a in ABLATIONS], rotation=20, ha="right")
+    axis.set_ylabel("apogee (m), mean over scenarios")
+    axis.set_title("Seed spread per ablation (min/mean/max over seeds and scenarios)")
+    fig.tight_layout()
+    path = fig_dir / "seed_spread.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--log-dir", default="results/logs")
+    parser.add_argument("--fig-dir", default="results/figures")
+    parser.add_argument("--eval", default="results/eval_rl.csv")
+    parser.add_argument("--baselines", default="results/baselines.csv")
+    parser.add_argument("--scenarios", default="configs/scenarios.yaml")
+    parser.add_argument("--scenario", default="H_ST", help="scenario for the profile plot")
+    parser.add_argument(
+        "--traj-methods",
+        default="bang_bang,mc_local_greedy,unconstrained_optimal,R4",
+    )
+    args = parser.parse_args(argv)
+
+    fig_dir = ROOT / args.fig_dir
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    _style()
+
+    config = yaml.safe_load((ROOT / args.scenarios).read_text())
+    scenarios = config["scenarios"]
+    logs = load_logs(ROOT / args.log_dir)
+    eval_df = load_eval(ROOT / args.eval)
+    baselines = pd.read_csv(ROOT / args.baselines) if (ROOT / args.baselines).exists() else pd.DataFrame()
+
+    outputs = []
+    if logs:
+        outputs.append(plot_learning_curves(logs, fig_dir))
+        outputs.append(plot_entropy_collapse(logs, fig_dir))
+    if not eval_df.empty and not baselines.empty:
+        outputs.append(plot_ablation_bars(eval_df, baselines, scenarios, fig_dir))
+        outputs.append(plot_heatmap(eval_df, baselines, scenarios, fig_dir))
+        spread = plot_seed_spread(eval_df, fig_dir)
+        if spread:
+            outputs.append(spread)
+    trajectory = plot_trajectory(
+        args.scenario,
+        [m.strip() for m in args.traj_methods.split(",")],
+        ROOT / "results" / "trajectories",
+        fig_dir,
+    )
+    if trajectory:
+        outputs.append(trajectory)
+    for path in outputs:
+        print(f"wrote {path.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

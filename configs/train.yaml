@@ -1,0 +1,71 @@
+domain_randomization:
+  m_fuel_0:
+    range: [300.0, 5000.0]
+    distribution: log_uniform
+  T_max:
+    range: [100000.0, 300000.0]
+    distribution: log_uniform
+  cd:
+    range: [1.0, 2.0]
+    distribution: uniform
+  Q_max:
+    range: [3500.0, 60000.0]
+    distribution: log_uniform
+    exclude: [5000.0, 7500.0, 10000.0, 15000.0, 30000.0, 45000.0]
+  tw_min: 1.1
+
+ppo:
+  gamma: 1.0
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  lr_start: 4.0e-4
+  lr_end: 2.0e-4
+  ent_coef_start: 0.02
+  ent_coef_end: 0.005
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  ppo_epochs: 2
+  mini_batch_size: 8192
+  target_kl: 0.05
+  hidden_sizes: [256, 256]
+  n_blocks: 32
+  n_twins: 8
+  n_envs: 256
+  n_updates: 120
+  seeds: [42, 101, 2026]
+
+ablations:
+  R0:
+    description: Baseline PPO with base observations and a unimodal Beta policy head.
+    beta_epsilon: 1.0
+    feature_set: base
+  R1:
+    description: R0 with a boundary-mode Beta policy head.
+    base: R0
+    beta_epsilon: 0.01
+    feature_set: base
+  R2:
+    description: R1 plus burnout features and a one-sided early-burnout penalty (CARL Revisit 1).
+    base: R1
+    feature_set: burnout
+    early_burnout_penalty: one_sided
+    burnout_target: mc_local_greedy_linear
+  R3:
+    description: R2 plus behavior-cloning warm start from MC-Local-Greedy or the singular-arc law.
+    base: R2
+    behavior_cloning_warm_start: true
+    behavior_cloning_expert: mc_local_greedy_or_singular_arc
+  R4:
+    description: Residual-action policy u = clip(u_singular + delta), baking in bang-arc-bang structure.
+    base: R2
+    action_parameterization: residual_singular_arc
+  R5:
+    description: R2 with the early-burnout penalty replaced by potential-based energy shaping.
+    base: R2
+    early_burnout_penalty: disabled
+    reward_shaping: potential_based_energy
+  R6:
+    description: Optional deterministic-policy method (SAC/TD3) or mode-based evaluation for U-shaped policies.
+    base: R2
+    optional: true
+    alternative: deterministic_policy_or_mode_based_eval
