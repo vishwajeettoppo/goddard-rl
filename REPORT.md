@@ -78,6 +78,50 @@ the entire deficit is heavy fuel with tight `Qmax`:
 Our brute-force baseline also beats the paper's MC-Local-Greedy on 5 of 18 scenarios
 (up to +740 m) while running 20–100× faster (1–2 s vs 20–233 s per scenario).
 
+## PPO implementation and diagnostics
+
+The learner is PPO with a Beta policy head. The actor and critic are separate 256×256
+tanh MLPs with orthogonal initialisation (`gain = √2` for the trunks, `0.01` for the
+actor head, `1.0` for the critic head). The actor predicts `α, β = softplus(raw) + ε`;
+the Beta distribution is defined on `[0, 1]`, which matches the throttle range exactly
+and avoids the boundary artefacts of a clipped Gaussian. The objective is the usual
+clipped surrogate,
+
+```
+ratio = π_new(a|s) / π_old(a|s)
+loss  = − min( ratio·A, clip(ratio, 1 − 0.2, 1 + 0.2)·A ) + 0.5·Huber(V, R) − c_ent·H(π)
+```
+
+with GAE(0.95), `γ = 1` (the reward telescopes to apogee, so there is nothing to
+discount), advantage normalisation per batch, gradient-norm clipping at 0.5, and a KL
+early stop when the mean approximate KL exceeds `1.5 × 0.05`. PyTorch does not implement
+`Beta.entropy()`, so the exploration term uses the analytic form
+`ln B(α,β) − (α−1)ψ(α) − (β−1)ψ(β) + (α+β−2)ψ(α+β)`.
+
+| Hyperparameter | Value |
+|---|---|
+| `γ` / GAE `λ` | 1.0 / 0.95 |
+| clip `ε` / epochs / minibatch | 0.2 / 2 / 8,192 |
+| rollout | 256 envs × 512 steps (≈ 131k transitions per update) |
+| target KL / early-stop factor | 0.05 / 1.5× |
+| learning rate / entropy coef | 4e-4 → 2e-4 / 0.02 → 0.005 (linear) |
+| value loss / grad clip | Huber / 0.5 |
+
+### What the diagnostics showed
+
+| Quantity | Measurement | Interpretation |
+|---|---|---|
+| Approximate KL | ≈ 0.002 for six of seven variants, **no early stops** | PPO barely moved; the learning rate was conservative for those parameterisations |
+| Approximate KL, R4 | mean 0.25, max 0.72, **99.2% of updates early-stopped** | the residual parameterisation changes behaviour much faster per gradient step |
+| Critic loss | 0.02 → 0.15–0.69 (reward units of 1000 m) | consistent with unnormalised returns; 0.2 ≈ 450 m RMSE |
+| Entropy | R3 starts at −2.2 nats (BC), all variants drift to −0.1…−0.4 | warm start removes exploration; others explore less over time |
+
+The most useful PPO-specific observation is the R4 anomaly: the variant that wins
+(89.3%) is also the only one constantly hitting its KL guard. The guard prevented a
+blow-up, but it also means the update budget was poorly matched to the
+parameterisation — a per-variant learning rate (or a larger `target_kl` for the residual
+head) is the first thing to try next. Figure: `results/figures/ppo_diagnostics.png`.
+
 ## Findings
 
 **Head-to-head.** Our agents beat the paper's fully-trained agent on 5 of 18

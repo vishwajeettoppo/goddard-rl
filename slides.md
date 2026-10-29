@@ -4,8 +4,16 @@
 
 Reproduction + improvement of *CARL: Chat Assisted Reinforcement Learning* (Section 7)
 
+`PPO` · `Beta policy head` · `actor-critic` · `GAE` · `KL early stopping`
+
 <!--
-Presenter: 12–15 minutes. Figures live in results/figures/.
+Presenter: 15 minutes, 23 slides + 7 backup slides.
+
+PPO is the course topic, so slides 9–13 carry the algorithm: the loop, the clipped
+objective + hyperparameters, the Beta head, and what PPO did in these runs. If you are
+short on time, compress slide 9 (practice gym) into one sentence and drop slide 18
+("what the numbers are telling us") — 16 and 17 already make that point.
+
 Speaker notes are written as "Say:" lines under each slide.
 Slide separators are `---` (works with Marp / reveal-md, and reads fine as plain markdown).
 -->
@@ -147,7 +155,113 @@ and compare with the paper's published table:
 
 ---
 
-## 10. Step 4 — The five improvements (one line each)
+## 10. PPO in one slide: the training loop
+
+**PPO = Proximal Policy Optimisation.** One update looks like this:
+
+```
+1. FLY     256 rockets for 512 steps with the current policy
+2. JUDGE   estimate the advantage A = "was this action better than expected?"
+3. UPDATE  push up good actions, push down bad ones — but only a little
+4. REPEAT  120 times
+```
+
+Two networks share the work (**actor-critic**):
+
+| Network | Job | Output |
+|---|---|---|
+| **Actor** | chooses the throttle | Beta distribution over `u` |
+| **Critic** | predicts the final altitude from the current state | one number |
+
+`γ = 1` because our reward is altitude gained per step: the sum telescopes to
+final apogee, so there is no discounting to do.
+
+> **Say:** The actor flies, the critic grades. "Advantage" is simply: did this action
+> turn out better than the critic expected? Good actions get more likely, bad ones less —
+> but PPO limits how much the policy may change per update.
+
+---
+
+## 11. The clipped objective — PPO's safety rail
+
+```
+ratio = π_new(a | s) / π_old(a | s)
+
+loss  = − min(  ratio · A ,  clip(ratio, 1 − ε, 1 + ε) · A  )        ε = 0.2
+```
+
+- If an action was **good** (`A > 0`), raise its probability — but the clip stops the
+  gain at **+20%** per update.
+- If it was **bad**, lower it — but no more than **−20%**.
+- Taking the `min` makes PPO **pessimistic**: it optimises the worst of the clipped and
+  unclipped objectives, so it never exploits a lucky large step.
+
+**Second safety rail:** if the average KL between old and new policy exceeds
+`1.5 × 0.05`, the update stops early.
+
+| Setting | Value (paper / ours) |
+|---|---|
+| discount `γ` · GAE `λ` | 1.0 · 0.95 |
+| clip `ε` · epochs · minibatch | 0.2 · 2 · 8,192 |
+| target KL · grad-norm clip | 0.05 (stop 1.5×) · 0.5 |
+| learning rate · entropy coef | 4e-4 → 2e-4 · 0.02 → 0.005 |
+| networks · value loss | 256×256 tanh, orthogonal · Huber |
+
+> **Say:** This is the whole of PPO: an importance ratio, a clip, and a KL guard. The
+> rest is bookkeeping. Everything in that table is what we implemented, and the paper's
+> Appendix C values are what we follow.
+
+---
+
+## 12. The Beta policy head — why not a Gaussian?
+
+Throttle lives in **[0, 1]**, so a Gaussian would need clipping (and clipping breaks
+the PPO ratio). A **Beta distribution** is defined exactly on that interval.
+
+```
+α, β  = softplus(raw) + ε          ε = 1.0  → unimodal
+                                   ε = 0.01 → can be U-shaped (mass at 0 and 1)
+
+mean  = α / (α + β)                mode = (α − 1) / (α + β − 2)
+```
+
+- **Why it matters for PPO:** the log-probability of the chosen throttle feeds the
+  ratio in the clipped objective. If the distribution cannot express "floor it or
+  coast", the ratio can never favour the extremes.
+- **Train/eval mismatch:** we train by *sampling*, but the paper's table evaluates the
+  *mean*. For U-shaped policies the mean sits between the two peaks — R6 tests the
+  **mode** instead, which is where the mass actually is.
+- PyTorch has no closed-form `entropy()` for Beta, so we implemented the analytic form
+  with `lgamma`/`digamma` — it is the exploration term in the loss.
+
+> **Say:** This is the paper's central idea in one slide: the shape of the output
+> distribution is part of the algorithm, not a detail. A bell shape cannot represent a
+> bang-bang policy, so PPO is optimising inside a box that excludes the answer.
+
+---
+
+## 13. What PPO actually did in our runs
+
+![PPO diagnostics](results/figures/ppo_diagnostics.png)
+
+| Observation | Number | Reading |
+|---|---|---|
+| KL on 6 of 7 variants | ~0.002, **0 early stops** | PPO was in "safe mode", barely moving |
+| KL on **R4 (residual)** | 0.25 mean, 0.72 max, **99% of updates early-stopped** | the residual parametrisation wants much larger steps |
+| Critic loss | 0.02 → 0.2–0.7 | reward is in 1000-m units; 0.2 ≈ 450 m error |
+| Entropy | R3 starts at −2.2, all drift down | BC starts rigid; others explore less over time |
+
+**The interesting PPO story:** R4 is the best agent (89.3%) *and* the only one that
+keeps hitting its KL guard. The guard did its job — it prevented a blow-up — but a
+per-parameterisation learning rate would likely do better still.
+
+> **Say:** This is the part you only see if you log the right things. Six variants never
+> left PPO's comfort zone, which suggests the learning rate was too small for them. The
+> one that actually moved is the one that won — and it was clipped almost every update.
+
+---
+
+## 14. Step 4 — The five improvements (one line each)
 
 | Change | Plain English |
 |---|---|
@@ -162,7 +276,7 @@ and compare with the paper's published table:
 
 ---
 
-## 11. The scoreboard
+## 15. The scoreboard
 
 ![Ablation ladder](results/figures/ablation_bars.png)
 
@@ -185,7 +299,7 @@ separately because it was trained with 4–8× more compute.*
 
 ---
 
-## 12. Where we improved on the paper
+## 16. Where we improved on the paper
 
 **A. Our 120-update agents beat CARL's fully-trained agent on 5 of 18 scenarios**
 (3 seeds each; the seed spread is shown because a win must not be noise):
@@ -217,7 +331,7 @@ separately because it was trained with 4–8× more compute.*
 
 ---
 
-## 13. Where we are behind — the same honesty
+## 17. Where we are behind — the same honesty
 
 | Scenario | Ours (best variant) | Paper (CARL final) | Gap |
 |---|---:|---:|---:|
@@ -236,7 +350,7 @@ fuel regimes (residual action + burnout penalty).
 
 ---
 
-## 14. What the numbers are telling us
+## 18. What the numbers are telling us
 
 **1. Same budget, structure wins.**
 Baseline 76.9% → residual action 89.3%: **+12.4 points**, same training time.
@@ -258,7 +372,7 @@ is real, not a myth.
 
 ---
 
-## 15. A concrete example
+## 19. A concrete example
 
 Scenario **`N_Lo`** (2000 kg fuel, loose speed limit):
 
@@ -277,7 +391,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 16. Why "residual action" works (the power-steering idea)
+## 20. Why "residual action" works (the power-steering idea)
 
 - Normally: the AI must invent the **entire** throttle curve from scratch.
 - Instead: start from the **mathematical textbook curve**, and let the AI learn a
@@ -290,7 +404,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 17. What didn't work (and what we won't overclaim)
+## 21. What didn't work (and what we won't overclaim)
 
 - **The paper's own idea** (U-shaped preference) did **not** help at our training
   budget: both variants ended at 76.9%.
@@ -305,7 +419,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 18. Three takeaways
+## 22. Three takeaways
 
 1. **Rebuild and verify before comparing.** Our simulator matches the published table to
    within a metre on 17 of 18 cases — that's what makes the table trustworthy.
@@ -320,7 +434,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 19. Where to look / thank you
+## 23. Where to look / thank you
 
 - **Live dashboard:** https://vishwajeettoppo.github.io/goddard-rl/
 - **Slides:** https://vishwajeettoppo.github.io/goddard-rl/slides.html
@@ -362,3 +476,48 @@ above the paper's fully-trained agent on this scenario.**
   lifts off) — so we replaced it with a search that reproduces every light and nominal
   row exactly.
 - Three heavy/tight rows remain unexplained; reported as-is.
+
+---
+
+## B5. How the advantage is estimated (GAE)
+
+PPO needs "how much better was this action than expected":
+
+```
+δ_t   = r_t + γ·V(s_{t+1}) − V(s_t)          one-step surprise
+A_t   = δ_t + γ·λ·δ_{t+1} + (γ·λ)²·δ_{t+2} + …   λ = 0.95
+```
+
+- `λ = 0` → pure one-step (low variance, high bias)
+- `λ = 1` → pure Monte-Carlo return (high variance, no bias)
+- `λ = 0.95` is the paper's compromise.
+- With `γ = 1` and our telescoping reward, `A_t` approximates
+  `(apogee − current altitude) / 1000` — i.e. "how much altitude is still in front of me".
+
+We also **normalise advantages** per batch (subtract mean, divide by std), which is what
+keeps a single learning rate usable across scenarios whose returns differ by 50×.
+
+## B6. Why PPO and not something else?
+
+| Method | Why not here |
+|---|---|
+| **REINFORCE** | no critic, very high variance on 1000-step episodes |
+| **DQN** | needs a discrete action set; throttle is continuous |
+| **SAC / TD3** | off-policy and sample-efficient, but need a replay buffer and a squashed Gaussian (which reintroduces the clipping problem at the action bounds) |
+| **PPO** | on-policy but stable, works with any bounded distribution (including Beta), one hyperparameter (`ε`) controls the trust region |
+
+For a *boundary-seeking* policy, Beta + PPO is the natural pairing: the distribution
+handles the bounds, PPO keeps the updates safe.
+
+## B7. What we would tune next in PPO
+
+1. **Learning rate per parameterisation.** R4 hit its KL guard on 99% of updates while
+   the other six never approached 0.05 — one learning rate for all seven is clearly
+   wrong.
+2. **Return normalisation.** The critic loss grows to 0.7 in reward units (≈ 850 m);
+   normalising returns or the value target would stabilise it.
+3. **More epochs at a smaller step size**, now that R4 shows the policy can move.
+4. **Entropy coefficient.** R3's BC start at −2.2 nats shows how fast a warm start
+   removes exploration; a scheduled floor on entropy would protect it.
+5. **Evaluate the mode, not the mean**, for U-shaped policies — cheap, and R6 shows it
+   changes the heavy-fuel numbers.

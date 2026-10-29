@@ -372,6 +372,57 @@ def plot_policy_shapes(fig_dir: Path, scenario: str = "H_ST") -> Path | None:
     return path
 
 
+def plot_ppo_diagnostics(logs: dict[str, pd.DataFrame], fig_dir: Path) -> Path:
+    """Approximate KL, value loss and entropy per PPO update.
+
+    These are the three numbers that tell you whether PPO is actually learning in a
+    stable way: the KL guard should stay below its threshold, the value loss should
+    fall or plateau, and the entropy should not collapse before the policy is good.
+    """
+
+    fig, axes = plt.subplots(1, 3, figsize=(13.2, 3.4))
+    panels = (
+        ("kl", "approximate KL between old and new policy", True),
+        ("value_loss", "critic loss (reward units: 1 = 1000 m)", True),
+        ("entropy", "policy entropy (nats)", False),
+    )
+    for axis, (column, label, log_y) in zip(axes, panels, strict=False):
+        for ablation in ABLATIONS:
+            if ablation not in logs:
+                continue
+            x, mean, std = _aggregate([logs[ablation]], column)
+            axis.plot(x, mean, label=LABELS.get(ablation, ablation), color=COLORS.get(ablation))
+            if not log_y:
+                axis.fill_between(x, mean - std, mean + std, color=COLORS.get(ablation), alpha=0.15)
+        axis.set_xlabel("PPO update")
+        axis.set_ylabel(label)
+        if log_y:
+            axis.set_yscale("log")
+    axes[0].axhline(0.05, color="black", linestyle=":", linewidth=0.8)
+    axes[0].axhline(0.075, color="black", linestyle="--", linewidth=0.8)
+    from matplotlib.lines import Line2D
+
+    axes[0].legend(
+        handles=[
+            Line2D([0], [0], color="black", linestyle=":", linewidth=0.8, label="target KL 0.05"),
+            Line2D([0], [0], color="black", linestyle="--", linewidth=0.8, label="early stop at 1.5x"),
+        ],
+        frameon=False,
+        fontsize=6,
+        loc="lower left",
+    )
+    axes[0].set_title("KL stayed tiny except for the residual action")
+    axes[1].set_title("Critic loss grows with altitude scale")
+    axes[2].set_title("Entropy: BC starts low, all drift down")
+    axes[2].axhline(0.0, color="black", linewidth=0.6, linestyle=":")
+    axes[2].legend(frameon=False, fontsize=7)
+    fig.tight_layout()
+    path = fig_dir / "ppo_diagnostics.png"
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
 def plot_seed_spread(eval_df: pd.DataFrame, fig_dir: Path) -> Path | None:
     if eval_df.empty:
         return None
@@ -427,6 +478,8 @@ def main(argv: list[str] | None = None) -> int:
     if logs:
         outputs.append(plot_learning_curves(logs, fig_dir))
         outputs.append(plot_entropy_collapse(logs, fig_dir))
+    if logs:
+        outputs.append(plot_ppo_diagnostics(logs, fig_dir))
     shapes = plot_policy_shapes(fig_dir)
     if shapes:
         outputs.append(shapes)

@@ -291,6 +291,7 @@ def dashboard_html(
         ("learning_curves.png", "Training apogee and Beta entropy per update, mean ± std over seeds."),
         ("entropy_collapse.png", "Beta entropy per update: R0 drifts down further than R1."),
         ("policy_shapes.png", "Policy shape along a rollout: R0 concentrates on one bump, R1 keeps a broader body."),
+        ("ppo_diagnostics.png", "PPO diagnostics: approximate KL (log scale), critic loss, and policy entropy per update."),
         ("ablation_bars.png", "Mean percent of best-known apogee over the 18 held-out scenarios."),
         ("heatmap.png", "Per-scenario percent of best-known apogee."),
         ("trajectory_H_ST.png", "Altitude, velocity and applied throttle for a representative heavy scenario."),
@@ -361,6 +362,9 @@ and is the largest single gain.</li>
 here (76.8%) because the altitude reward is already dense.</li>
 <li><strong>R6</strong>: an actor-side max-Q cap plus mode-based evaluation removes the
 Beta train/eval mismatch.</li>
+<li><strong>PPO diagnostics</strong>: six of seven variants never leave PPO's comfort zone
+(KL ≈ 0.002, no early stops); the residual agent is the only one that hits its KL guard
+(99% of updates) &mdash; and it is the one that wins.</li>
 </ol></section>
 </main>
 <footer class="wrap">Reproduction artefact · shared evaluator in <code>src/env.py</code> ·
