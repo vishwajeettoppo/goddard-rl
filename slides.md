@@ -7,7 +7,7 @@ Reproduction + improvement of *CARL: Chat Assisted Reinforcement Learning* (Sect
 `PPO` · `Beta policy head` · `actor-critic` · `GAE` · `KL early stopping`
 
 <!--
-Presenter: 15 minutes, 23 slides + 7 backup slides.
+Presenter: 15 minutes, 23 slides (no backup slides).
 
 PPO is the course topic, so slides 9–13 carry the algorithm: the loop, the clipped
 objective + hyperparameters, the Beta head, and what PPO did in these runs. If you are
@@ -404,7 +404,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 21. What didn't work (and what we won't overclaim)
+## 21. What didn't work
 
 - **The paper's own idea** (U-shaped preference) did **not** help at our training
   budget: both variants ended at 76.9%.
@@ -443,81 +443,3 @@ above the paper's fully-trained agent on this scenario.**
 - **Interactive demo:** `notebooks/demo.ipynb`
 
 **Questions?**
-
----
-
-# Backup slides
-
-## B1. Is the speed limit actually respected?
-
-- Every step is checked; if the commanded thrust would break the limit, the simulator
-  searches for the largest safe thrust.
-- Violating steps are penalised with extra drag.
-- Measured violations across all 18 evaluation runs: **zero**.
-- Reference to show if asked: `results/eval_rl.csv` (`q_violation_frac` column).
-
-## B2. Are we training on the test scenarios?
-
-- No. Training conditions are **wider** than the 18 test scenarios.
-- The 18 exact fuel/speed-limit pairs are explicitly excluded.
-- Settings: `configs/train.yaml`.
-
-## B3. Why is one Bang-Bang scenario off by 0.27%?
-
-- The paper does not publish the details of its clip/surcharge implementation.
-- We tried the plausible variants (search depth 8–30, surcharge on/off, different
-  ordering); none reproduces 42,083 m exactly. Closest: 41,970 m.
-- Documented in `docs/reproduction.md` rather than tuned to match.
-
-## B4. Why can't we reproduce three of the paper's "unconstrained" results?
-
-- That baseline needs a switch time the paper never states.
-- The obvious rule from the project brief switches at time zero (the rocket never
-  lifts off) — so we replaced it with a search that reproduces every light and nominal
-  row exactly.
-- Three heavy/tight rows remain unexplained; reported as-is.
-
----
-
-## B5. How the advantage is estimated (GAE)
-
-PPO needs "how much better was this action than expected":
-
-```
-δ_t   = r_t + γ·V(s_{t+1}) − V(s_t)          one-step surprise
-A_t   = δ_t + γ·λ·δ_{t+1} + (γ·λ)²·δ_{t+2} + …   λ = 0.95
-```
-
-- `λ = 0` → pure one-step (low variance, high bias)
-- `λ = 1` → pure Monte-Carlo return (high variance, no bias)
-- `λ = 0.95` is the paper's compromise.
-- With `γ = 1` and our telescoping reward, `A_t` approximates
-  `(apogee − current altitude) / 1000` — i.e. "how much altitude is still in front of me".
-
-We also **normalise advantages** per batch (subtract mean, divide by std), which is what
-keeps a single learning rate usable across scenarios whose returns differ by 50×.
-
-## B6. Why PPO and not something else?
-
-| Method | Why not here |
-|---|---|
-| **REINFORCE** | no critic, very high variance on 1000-step episodes |
-| **DQN** | needs a discrete action set; throttle is continuous |
-| **SAC / TD3** | off-policy and sample-efficient, but need a replay buffer and a squashed Gaussian (which reintroduces the clipping problem at the action bounds) |
-| **PPO** | on-policy but stable, works with any bounded distribution (including Beta), one hyperparameter (`ε`) controls the trust region |
-
-For a *boundary-seeking* policy, Beta + PPO is the natural pairing: the distribution
-handles the bounds, PPO keeps the updates safe.
-
-## B7. What we would tune next in PPO
-
-1. **Learning rate per parameterisation.** R4 hit its KL guard on 99% of updates while
-   the other six never approached 0.05 — one learning rate for all seven is clearly
-   wrong.
-2. **Return normalisation.** The critic loss grows to 0.7 in reward units (≈ 850 m);
-   normalising returns or the value target would stabilise it.
-3. **More epochs at a smaller step size**, now that R4 shows the policy can move.
-4. **Entropy coefficient.** R3's BC start at −2.2 nats shows how fast a warm start
-   removes exploration; a scheduled floor on entropy would protect it.
-5. **Evaluate the mode, not the mean**, for U-shaped policies — cheap, and R6 shows it
-   changes the heavy-fuel numbers.
