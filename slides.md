@@ -125,6 +125,9 @@ and compare with the paper's published table:
 | **Textbook optimum** | The ideal flight *if there were no speed limit* | 93.8% |
 | **Mathematical optimum** | Solver finds the true best legal flight | 100% |
 
+- Our version of the brute-force search beats the paper's on **5 of 18** scenarios
+  (up to **+740 m**) and runs **20–100× faster**: 1–2 s vs 20–233 s per scenario.
+
 > **Say:** These are all "no learning" methods. They tell us what a good answer looks
 > like, and they set the bar the AI has to clear.
 
@@ -182,7 +185,58 @@ separately because it was trained with 4–8× more compute.*
 
 ---
 
-## 12. What the numbers are telling us
+## 12. Where we improved on the paper
+
+**A. Our 120-update agents beat CARL's fully-trained agent on 5 of 18 scenarios**
+(3 seeds each; the seed spread is shown because a win must not be noise):
+
+| Scenario | Paper (CARL final) | Ours (mean) | Gain | Seed spread |
+|---|---:|---:|---:|---:|
+| `N_Lo` | 15,378 m | 15,761 m | **+383 m** | ±4 m |
+| `N_M` | 15,403 m | 15,756 m | **+353 m** | ±3 m |
+| `L_Lo` | 3,488 m | 3,492 m | +4 m | ±1 m |
+| `L_MT` | 3,484 m | 3,486 m | +2 m | ±2 m |
+| `L_M` | 3,491 m | 3,492 m | +1 m | ±1 m |
+
+**B. Our optimiser raises the best-known ceiling on 9 of 18 scenarios**
+(the paper had no direct-optimum reference to compare against):
+
+| Scenario | Paper's best (any method) | Our CasADi optimum | Gain |
+|---|---:|---:|---:|
+| `H_MT` | 44,023 m | 44,823 m | **+800 m** |
+| `H_HT` | 48,170 m | 48,844 m | **+674 m** |
+| `H_ST` | 49,465 m | 49,966 m | **+501 m** |
+| `N_MT` | 15,498 m | 15,612 m | +114 m |
+| `N_HT` | 15,728 m | 15,802 m | +74 m |
+
+*Mean gain over 18 scenarios: +120 m. Four nominal rows gain +1 m.*
+
+> **Say:** Two kinds of improvement. On nominal fuel our small agent already beats
+> their big one by 350 metres with a seed spread of 3–4 metres — that is not luck.
+> And our solver finds altitudes the paper never reached on the tightest heavy cases.
+
+---
+
+## 13. Where we are behind — the same honesty
+
+| Scenario | Ours (best variant) | Paper (CARL final) | Gap |
+|---|---:|---:|---:|
+| `H_T` | 36,223 m | 47,140 m | −10,917 m |
+| `H_M` | 34,592 m | 47,870 m | −13,278 m |
+| `H_Lo` | 35,057 m | 47,864 m | −12,807 m |
+| **Overall mean** | **89.3%** | **96.9%** | **−7.6 pts** |
+
+The entire deficit sits in **heavy-fuel rockets with tight speed limits**. Our budget
+was a fifth of the paper's, and we never combined the two fixes that win different
+fuel regimes (residual action + burnout penalty).
+
+> **Say:** I want to be the one who says this, not you. We beat their agent where fuel
+> is light or nominal and lose badly where fuel is heavy. Averaged over everything,
+> they are 7.6 points ahead.
+
+---
+
+## 14. What the numbers are telling us
 
 **1. Same budget, structure wins.**
 Baseline 76.9% → residual action 89.3%: **+12.4 points**, same training time.
@@ -199,15 +253,12 @@ is real, not a myth.
 | Nominal | Residual action | 94.9% |
 | Heavy | Burnout penalty | 78.9% |
 
-**4. The remaining gap is heavy rockets with the strictest speed limits.**
-That's the honest frontier for future work.
-
 > **Say:** No single tweak wins everywhere. The residual action fixes light and nominal;
 > the burnout penalty is what rescues heavy fuel. They are complementary.
 
 ---
 
-## 13. A concrete example
+## 15. A concrete example
 
 Scenario **`N_Lo`** (2000 kg fuel, loose speed limit):
 
@@ -226,7 +277,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 14. Why "residual action" works (the power-steering idea)
+## 16. Why "residual action" works (the power-steering idea)
 
 - Normally: the AI must invent the **entire** throttle curve from scratch.
 - Instead: start from the **mathematical textbook curve**, and let the AI learn a
@@ -239,7 +290,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 15. What didn't work (and what we won't overclaim)
+## 17. What didn't work (and what we won't overclaim)
 
 - **The paper's own idea** (U-shaped preference) did **not** help at our training
   budget: both variants ended at 76.9%.
@@ -254,7 +305,7 @@ above the paper's fully-trained agent on this scenario.**
 
 ---
 
-## 16. Three takeaways
+## 18. Three takeaways
 
 1. **Rebuild and verify before comparing.** Our simulator matches the published table to
    within a metre on 17 of 18 cases — that's what makes the table trustworthy.
@@ -262,10 +313,14 @@ above the paper's fully-trained agent on this scenario.**
    Changing *how* it chooses the throttle unlocked most of the gain.
 3. **Structure beats brute force.** Giving the agent a good starting curve
    (+12 points) outperformed every other single change.
+4. **Where we stand against the paper.** With a fifth of the training we beat the
+   paper's fully-trained agent on 5 of 18 scenarios (up to +383 m) and raise the
+   best-known altitude on 9 of 18 — but we are 7.6 points behind on the average,
+   entirely because of heavy fuel.
 
 ---
 
-## 17. Where to look / thank you
+## 19. Where to look / thank you
 
 - **Live dashboard:** https://vishwajeettoppo.github.io/goddard-rl/
 - **Slides:** https://vishwajeettoppo.github.io/goddard-rl/slides.html

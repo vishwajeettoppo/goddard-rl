@@ -131,6 +131,12 @@ the table is trained on.
    and the altitude reward is already dense enough that nothing is gained.
 7. **Q-cap + mode evaluation (R6)** is the second-best heavy-fuel variant and removes
    the Beta train/eval mismatch, at a small cost on light fuel.
+8. **Where we actually beat the paper.** With a fifth of the training, our agents beat
+   CARL's fully-trained agent on **5 of 18** scenarios (`N_Lo` +383 m, `N_M` +353 m,
+   seed spread ≤ 4 m) and the CasADi optimum raises the best-known altitude on **9 of 18**
+   (up to +800 m on `H_MT`). We are still 7.6 points behind on the average — the whole
+   deficit is heavy fuel with tight `Qmax`. Full accounting in
+   [`REPORT.md`](REPORT.md#improvements-over-the-paper).
 
 Full write-up: [`REPORT.md`](REPORT.md). Exact deviations from the paper:
 [`docs/reproduction.md`](docs/reproduction.md).

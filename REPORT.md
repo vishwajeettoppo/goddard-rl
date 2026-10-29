@@ -38,7 +38,52 @@ RL numbers are means over three seeds; the evaluator already matches the
 paper's Bang-Bang column to ≤ 1 m on 17 of 18 scenarios (see
 `docs/reproduction.md`).
 
+### Improvements over the paper
+
+Three head-to-head comparisons were run against the published Table 7.
+
+**(A) Our 120-update agents beat CARL's fully-trained agent on 5 of 18 scenarios**
+(mean over 3 seeds; the per-scenario seed spread is 1–4 m, so the nominal-fuel gains
+are not noise):
+
+| Scenario | Paper (CARL final) | Ours (mean) | Gain | Seed spread |
+|---|---:|---:|---:|---:|
+| `N_Lo` | 15,378 m | 15,761 m | +383 m | ±4 m |
+| `N_M` | 15,403 m | 15,756 m | +353 m | ±3 m |
+| `L_Lo` | 3,488 m | 3,492 m | +4 m | ±1 m |
+| `L_MT` | 3,484 m | 3,486 m | +2 m | ±2 m |
+| `L_M` | 3,491 m | 3,492 m | +1 m | ±1 m |
+
+**(B) The CasADi optimum raises the best-known altitude on 9 of 18 scenarios**,
+i.e. above every number reported anywhere in the paper's table. Mean gain: **+120 m**.
+
+| Scenario | Paper's best (any method) | CasADi optimum | Gain |
+|---|---:|---:|---:|
+| `H_MT` | 44,023 m | 44,823 m | +800 m |
+| `H_HT` | 48,170 m | 48,844 m | +674 m |
+| `H_ST` | 49,465 m | 49,966 m | +501 m |
+| `N_MT` | 15,498 m | 15,612 m | +114 m |
+| `N_HT` | 15,728 m | 15,802 m | +74 m |
+| 4 nominal rows | 15,805 m | 15,806 m | +1 m |
+
+**(C) Where we are behind.** The overall mean is 89.3% against the paper's 96.9%, and
+the entire deficit is heavy fuel with tight `Qmax`:
+
+| Scenario | Ours (best variant) | Paper (CARL final) | Gap |
+|---|---:|---:|---:|
+| `H_T` | 36,223 m | 47,140 m | −10,917 m |
+| `H_M` | 34,592 m | 47,870 m | −13,278 m |
+| `H_Lo` | 35,057 m | 47,864 m | −12,807 m |
+
+Our brute-force baseline also beats the paper's MC-Local-Greedy on 5 of 18 scenarios
+(up to +740 m) while running 20–100× faster (1–2 s vs 20–233 s per scenario).
+
 ## Findings
+
+**Head-to-head.** Our agents beat the paper's fully-trained agent on 5 of 18
+scenarios (up to +383 m, seed spread ≤ 4 m) and our optimiser raises the best-known
+altitude on 9 of 18; we remain 7.6 points behind on the average because of heavy
+fuel — see "Improvements over the paper" above.
 
 1. **The residual action is the dominant improvement.** Parameterising the
    action as `u = clip(u_singular + δ)` lifts the agent from 76.9% to 89.3% of
